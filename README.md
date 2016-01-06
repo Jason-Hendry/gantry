@@ -15,8 +15,8 @@ gantry help
 ```
 
 ## TODO
-[ ] Command Validation
-[ ] Auto-Complee
+- [ ] Command Validation
+- [ ] Auto-Complee
 
 ## Tested on:
 
