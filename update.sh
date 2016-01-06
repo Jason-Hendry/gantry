@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 export EDITOR=vim
-INSTALL_PREFIX="/usr/local/sbin"
+INSTALL_PREFIX="/usr/local/bin"
 
 if [ -n "$(git status)" ]; then
     git commit -a
