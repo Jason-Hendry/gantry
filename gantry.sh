@@ -17,6 +17,12 @@ function restart() {
     stop
     start
 }
+# Rebuild Docker Containers
+function rebuild() {
+    stop
+    _build
+    start
+}
 # Open in web browser
 function web() {
     open http://$(_dockerHost):$DOCKER_HTTP_PORT
@@ -45,7 +51,9 @@ function _mainContainer {
 function _dockerHost {
     echo $DOCKER_HOST | sed 's/tcp:\/\///' | sed 's/:.*//'
 }
-
+function _build {
+    docker-compose build
+}
 
 if [ -z $1 ]; then
     echo "Usage $0 [command]"
