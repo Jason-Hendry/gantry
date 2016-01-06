@@ -9,3 +9,4 @@ if [ -n "$(git status)" ]; then
 fi
 
 cp gantry.sh ${INSTALL_PREFIX}/gantry
+chmod +x ${INSTALL_PREFIX}/gantry
