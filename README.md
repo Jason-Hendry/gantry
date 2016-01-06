@@ -1,7 +1,7 @@
 # Gantry
 
 Gantry provides a standard set of tools and shortcuts for managing the development workflow using docker, php, postgres and mysql for 
-building symfony2, wordpress and drupal sites. 
+building PHP applications - focusing on symfony2, wordpress and drupal sites. 
 
 ## Requires
 
@@ -9,7 +9,7 @@ building symfony2, wordpress and drupal sites.
 * docker-compose
 * docker enviroment variables
 
-## Docker ENV
+### Docker ENV
 
 ```sh
 # ~/.profile
@@ -23,7 +23,7 @@ Run gantry without arguments for a list of available commands
 gantry
 ```
 
-### Starting, Stopping and rebuilding Docker containers
+### Starting, Stopping and Rebuilding Docker containers
 ```sh
 gantry start
 gantry stop
