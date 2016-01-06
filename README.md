@@ -12,15 +12,23 @@ building symfony2, wordpress and drupal sites.
 ## Docker ENV
 
 ```sh
-# 
+# ~/.profile
 eval "$(docker-machine env default)"
 ```
 
 ## Usage
 
 Run gantry without arguments for a list of available commands
-```
+```sh
 gantry
+```
+
+### Starting, Stopping and rebuilding Docker containers
+```sh
+gantry start
+gantry stop
+gantry restart
+gantry rebuild
 ```
 
 ## TODO
