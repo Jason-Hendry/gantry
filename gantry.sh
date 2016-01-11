@@ -17,10 +17,14 @@ function restart() {
     stop
     start
 }
+# Build Docker Containers
+function build {
+    docker-compose build
+}
 # Rebuild Docker Containers
 function rebuild() {
     stop
-    _build
+    build
     start
 }
 # Open in web browser
@@ -50,9 +54,6 @@ function _mainContainer {
 }
 function _dockerHost {
     echo $DOCKER_HOST | sed 's/tcp:\/\///' | sed 's/:.*//'
-}
-function _build {
-    docker-compose build
 }
 
 if [ -z $1 ]; then
