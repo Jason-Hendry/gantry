@@ -18,7 +18,7 @@ function restart() {
     start
 }
 # Build Docker Containers
-function build {
+function build() {
     docker-compose build
 }
 # Rebuild Docker Containers
