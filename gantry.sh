@@ -48,13 +48,13 @@ function psql() {
 function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
 }
-# run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5)
-function cap {
-    docker run -it --rm -v .:/source neolao/capistrano:2.15.5 cap ${@:2}
+# run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to phpunit command)
+function cap() {
+    docker run -it --rm -v .:/source neolao/capistrano:2.15.5 cap $@
 }
-# run unit tests on app folder
-function test {
-    _exec phpunit -c $PHPUNIT_CONF_PATH
+# run unit tests on app folder (extra args passed to phpunit command)
+function test() {
+    _exec phpunit -c $PHPUNIT_CONF_PATH $@
 }
 
 function _mainContainer {
