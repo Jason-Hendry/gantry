@@ -47,6 +47,11 @@ function psql() {
 function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
 }
+# run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5)
+function cap {
+    docker run -it --rm -v .:/source neolao/capistrano:2.15.5 cap ${@:2}
+}
+
 
 function _mainContainer {
     # Grab the first non-blank line
@@ -55,7 +60,6 @@ function _mainContainer {
 function _dockerHost {
     echo $DOCKER_HOST | sed 's/tcp:\/\///' | sed 's/:.*//'
 }
-
 if [ -z $1 ]; then
     echo "Usage $0 [command]"
     echo ""

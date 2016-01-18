@@ -8,5 +8,5 @@ if [ -n "$(git status)" ]; then
     git push
 fi
 
-cp gantry.sh ${INSTALL_PREFIX}/gantry
-chmod +x ${INSTALL_PREFIX}/gantry
+sudo cp gantry.sh ${INSTALL_PREFIX}/gantry
+sudo chmod +x ${INSTALL_PREFIX}/gantry
