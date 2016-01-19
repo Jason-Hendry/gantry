@@ -52,7 +52,7 @@ function console_db() {
 }
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to phpunit command)
 function cap() {
-    docker run -it --rm -v .:/source neolao/capistrano:2.15.5 cap $@
+    docker run -it --rm -v .:/source neolao/capistrano:3.4.0 cap $@
 }
 # run unit tests on app folder (extra args passed to phpunit command)
 function test() {
