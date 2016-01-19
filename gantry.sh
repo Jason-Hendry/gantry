@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 [ -f .gantry ] && . .gantry
+[ -f gantry.sh ] && . gantry.sh
 
 [ -z $DOCKER_HTTP_PORT ] && export DOCKER_HTTP_PORT=80
 [ -z $PHPUNIT_CONF_PATH ] && export PHPUNIT_CONF_PATH="app"
@@ -79,6 +80,10 @@ if [ -z $1 ]; then
     if [ -f .gantry ]; then
       echo -n "Project Commands (.gantry)"
       cat .gantry | grep -B1 -E "function [a-z]" | tr "\n" ">" | tr "#" "\n" | perl -F'>' -ane '$fun = substr(substr($F[1], 9), 0, -4);printf "  %-15s %s\n", $fun, $F[0]'
+    fi
+    if [ -f gantry.sh ]; then
+      echo -n "Project Commands (gantry.sh)"
+      cat gantry.sh | grep -B1 -E "function [a-z]" | tr "\n" ">" | tr "#" "\n" | perl -F'>' -ane '$fun = substr(substr($F[1], 9), 0, -4);printf "  %-15s %s\n", $fun, $F[0]'
     fi
     echo ""
     exit;
