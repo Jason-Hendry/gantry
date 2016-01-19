@@ -64,6 +64,11 @@ function _mainContainer {
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
 }
 function _dockerHost {
+    if [ -z $DOCKER_HOST ]
+    then
+        echo localhost;
+        exit;
+    fi
     echo $DOCKER_HOST | sed 's/tcp:\/\///' | sed 's/:.*//'
 }
 
