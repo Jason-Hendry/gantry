@@ -31,6 +31,7 @@ function rebuild() {
 }
 # Open in web browser
 function web() {
+    echo "Opening: http://$(_dockerHost):$DOCKER_HTTP_PORT"
     open http://$(_dockerHost):$DOCKER_HTTP_PORT
 }
 # Open terminal console on main docker container
