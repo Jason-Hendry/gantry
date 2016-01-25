@@ -62,6 +62,11 @@ function test() {
 function symfony() {
     _exec ./app/console $@
 }
+# create fosUserBundle user (username email password role)
+function create-user() {
+    _exec ./app/console fos:user:create $1 $2 $3
+    _exec ./app/console fos:user:promote $1 $4
+}
 function _mainContainer {
     # Grab the first non-blank line
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
