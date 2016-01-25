@@ -58,7 +58,10 @@ function cap() {
 function test() {
     _exec phpunit -c $PHPUNIT_CONF_PATH $@
 }
-
+# run symfony console (./app/console ...)
+function symfony() {
+    _exec ./app/console $@
+}
 function _mainContainer {
     # Grab the first non-blank line
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
