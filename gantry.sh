@@ -50,10 +50,19 @@ function psql() {
 function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
 }
-# run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to phpunit command)
+# run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
     docker run -it --rm -v .:/source neolao/capistrano:3.4.0 cap $@
 }
+# run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
+function sass() {
+    docker run -it --rm -v .:/source rainsystems/sass:3.4.21 sass $@
+}
+# run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
+function bower() {
+    docker run -it --rm -v .:/source rainsystems/bower:1.7.2 bower --allow-root $@
+}
+
 # run unit tests on app folder (extra args passed to phpunit command)
 function test() {
     _exec phpunit -c $PHPUNIT_CONF_PATH $@
