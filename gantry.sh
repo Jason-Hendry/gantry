@@ -54,15 +54,15 @@ function console_db() {
 }
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
-    docker run -it --rm -v .:/source neolao/capistrano:3.4.0 cap $@
+    docker run -it --rm -v `pwd`:/source neolao/capistrano:3.4.0 cap $@
 }
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
 function sass() {
-    docker run -it --rm -v .:/source rainsystems/sass:3.4.21 sass $@
+    docker run -it --rm -v `pwd`:/source rainsystems/sass:3.4.21 sass $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
-    docker run -it --rm -v .:/source rainsystems/bower:1.7.2 bower --allow-root $@
+    docker run -it --rm -v `pwd`:/source rainsystems/bower:1.7.2 bower --allow-root $@
 }
 # print version
 function version() {
