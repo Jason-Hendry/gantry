@@ -31,6 +31,22 @@ gantry restart
 gantry rebuild
 ```
 
+## Complementary tools
+
+Provide version consistancy amoung developers
+
+```sh
+# Run sass command in standalone ruby+sass container
+gantry sass --watch sass/file.sass:css/file.css
+
+# Run bower command in standalone node+bower container
+gantry bower install angularjs
+
+# Run capistrano command in standalone ruby+cap container
+gantry cap install
+gantry cap production deploy
+```
+
 ## TODO
 - [ ] Command Validation
 - [ ] Auto-Complete
