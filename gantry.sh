@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export GANTRY_VERSION="1.0"
+
 [ -f .gantry ] && . .gantry
 [ -f gantry.sh ] && . gantry.sh
 
@@ -61,6 +63,26 @@ function sass() {
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
     docker run -it --rm -v .:/source rainsystems/bower:1.7.2 bower --allow-root $@
+}
+# print version
+function version() {
+    echo "Gantry v${GANTRY_VERSION} - Author Jason Hendry https://github.com/Jason-Hendry/gantry"
+}
+# Update gantry
+function self-update() {
+    if [ -w $0 ]; then
+        curl -o $0 https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
+        if [ !-x $0 ]; then
+            chmod +x $0
+        fi
+    else
+        curl -o $0 https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
+        if [ !-x $0 ]; then
+            sudo chmod +x $0
+        fi
+    fi
+
+
 }
 
 # run unit tests on app folder (extra args passed to phpunit command)
