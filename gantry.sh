@@ -76,13 +76,11 @@ function self-update() {
             chmod +x $0
         fi
     else
-        curl -o $0 https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
+        sudo curl -o $0 https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
         if [ !-x $0 ]; then
             sudo chmod +x $0
         fi
     fi
-
-
 }
 
 # run unit tests on app folder (extra args passed to phpunit command)
