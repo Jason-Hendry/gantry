@@ -54,7 +54,7 @@ function console_db() {
 }
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
-    docker run -it --rm -v `pwd`:/source -v $HOME/.ssh/root/.ssh neolao/capistrano:3.4.0 cap $@
+    docker run -it --rm -v `pwd`:/source -v $HOME/.ssh/id_rsa:/key neolao/capistrano:3.4.0 cap $@
 }
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
 function sass() {
