@@ -5,7 +5,7 @@ INSTALL_PREFIX="/usr/local/bin"
 
 if [ -n "$(git status)" ]; then
     git commit -a
-    git push
+#    git push
 fi
 
 sudo cp gantry.sh ${INSTALL_PREFIX}/gantry
