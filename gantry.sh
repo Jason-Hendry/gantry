@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
-export GANTRY_VERSION="1.0"
+export GANTRY_VERSION="1.1"
 
 [ -f .gantry ] && . .gantry
 [ -f gantry.sh ] && . gantry.sh
 
 [ -z $DOCKER_HTTP_PORT ] && export DOCKER_HTTP_PORT=80
 [ -z $PHPUNIT_CONF_PATH ] && export PHPUNIT_CONF_PATH="app"
+
+[ -z $SSH_DIR ] && export SSH_DIR="$HOME/.ssh"
 
 # Start Docker Containers
 function start() {
@@ -52,17 +54,25 @@ function psql() {
 function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
 }
+
+function _join { local IFS="$1"; shift; echo "$*"; }
+
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
-    docker run -it --rm -v `pwd`:/source -v $HOME/.ssh/id_rsa:/key neolao/capistrano:3.4.0 cap $@
+    local CMDS="cp -r /ssh /root/.ssh; chmod 0700 -R /root/.ssh; chown -R root.root /root/.ssh; cap $@";
+    docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -v -c "$(echo $CMDS)"
+}
+# run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
+function deploy() {
+    docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -v -c "cp -r /ssh /root/.ssh; chmod 0700 -R /root/.ssh; chown -R root.root /root/.ssh; cap $1 deploy"
 }
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
 function sass() {
-    docker run -it --rm -v `pwd`:/source rainsystems/sass:3.4.21 sass $@
+    docker run -it --rm -v `pwd`:/source rainsystems/sass:3.4.21 $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
-    docker run -it --rm -v `pwd`:/source rainsystems/bower:1.7.2 bower --allow-root $@
+    docker run -it --rm -v `pwd`:/source rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
 }
 # print version
 function version() {
