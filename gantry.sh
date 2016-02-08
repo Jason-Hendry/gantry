@@ -11,6 +11,7 @@ export GANTRY_VERSION="1.1"
 [ -z $PHPUNIT_CONF_PATH ] && export PHPUNIT_CONF_PATH="app"
 
 [ -z $SSH_DIR ] && export SSH_DIR="$HOME/.ssh"
+[ -z $BOWER_MAP ] && export BOWER_MAP=""
 
 # Start Docker Containers
 function start() {
@@ -74,7 +75,7 @@ function sass() {
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
-    docker run -it --rm -v `pwd`:/source rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
+    docker run -it --rm -v `pwd`:/source -v $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
 }
 # print version
 function version() {
