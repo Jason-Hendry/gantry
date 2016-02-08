@@ -75,7 +75,7 @@ function sass() {
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
-    docker run -it --rm -v `pwd`:/source -v $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
+    docker run -it --rm -v `pwd`:/source $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
 }
 # print version
 function version() {
