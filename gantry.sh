@@ -2,6 +2,8 @@
 
 export GANTRY_VERSION="1.1"
 
+[ -z $GANTRY_ENV ] && export GANTRY_ENV="prod"
+
 [ -f .gantry ] && . .gantry
 [ -f gantry.sh ] && . gantry.sh
 
