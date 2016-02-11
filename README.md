@@ -9,6 +9,19 @@ building PHP applications - focusing on symfony2, wordpress and drupal sites.
 * docker-compose
 * docker enviroment variables
 
+## Install
+
+```sh
+sudo curl -o /usr/local/sbin/gantry https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
+sudo chmod +x /usr/local/sbin/gantry
+```
+
+## Upgrade
+
+```sh
+sudo curl -o `which gantry` https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
+```
+
 ### Docker ENV
 
 ```sh
