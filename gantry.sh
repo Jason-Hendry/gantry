@@ -32,7 +32,6 @@ function build() {
 }
 # Rebuild Docker Containers
 function rebuild() {
-    stop
     build
     start
 }
