@@ -11,6 +11,7 @@ export GANTRY_VERSION="1.1"
 [ -z $PHPUNIT_CONF_PATH ] && export PHPUNIT_CONF_PATH="app"
 
 [ -z $SSH_DIR ] && export SSH_DIR="$HOME/.ssh"
+[ -z $BOWER_VOL ] && export BOWER_VOL="`pwd`/bower_components"
 [ -z $BOWER_MAP ] && export BOWER_MAP="$BOWER_VOL:/source/bower_components"
 
 # Start Docker Containers
