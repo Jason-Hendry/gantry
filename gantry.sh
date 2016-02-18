@@ -139,6 +139,12 @@ function test() {
 function symfony() {
     _exec ./app/console $@
 }
+
+# tail the logs from the main container
+function logs() {
+    docker logs -f ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT}
+}
+
 # create fosUserBundle user (username email password role)
 function create-user() {
     _exec ./app/console fos:user:create $1 $2 $3
@@ -158,7 +164,7 @@ function _dockerHost {
 }
 
 function _exec() {
-    docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_1 $@
+    docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT} $@
 }
 
 
