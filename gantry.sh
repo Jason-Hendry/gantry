@@ -75,6 +75,24 @@ function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
 }
 
+# Restore DB from file (filename.sql.gz)
+function restore() {
+    # TODO: postgres restore
+    zcat -f $1 > data/backup.sql
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "echo \"drop database \$MYSQL_DATABASE;create database \$MYSQL_DATABASE\" | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot"
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
+    echo "DB Restore using $1"
+}
+# Create DB backup - gzipped sql (optional filename - no extension)
+function backup() {
+    # TODO: postgres backup
+    [ -z $1 ] && local BU_FILE="backup-$(date +%Y%m%d%H%M)" || local BU_FILE="$1"
+    docker exec ${COMPOSE_PROJECT_NAME}_db_1 bash -c "MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysqldump -uroot \$MYSQL_DATABASE > /backup.sql"
+    cat data/backup.sql > ${BU_FILE}.sql
+    gzip ${BU_FILE}.sql
+    echo "DB Backup $BU_FILE"
+}
+
 function _join { local IFS="$1"; shift; echo "$*"; }
 
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
