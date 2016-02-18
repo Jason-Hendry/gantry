@@ -2,6 +2,7 @@
 
 export GANTRY_VERSION="1.1"
 
+[ -z $COMPOSE_PROJECT_NAME ] && export COMPOSE_PROJECT_NAME="$(basename $(pwd))"
 [ -z $GANTRY_ENV ] && export GANTRY_ENV="prod"
 
 [ -f .gantry ] && . .gantry
@@ -14,9 +15,19 @@ export GANTRY_VERSION="1.1"
 [ -z $BOWER_VOL ] && export BOWER_VOL="`pwd`/bower_components"
 [ -z $BOWER_MAP ] && export BOWER_MAP="$BOWER_VOL:/source/bower_components"
 
+[ -d "${HOME}/.gantry" ] || mkdir -p "${HOME}/.gantry"
+export GANTRY_DATA_FILE="$HOME/.gantry/${COMPOSE_PROJECT_NAME}_${GANTRY_ENV}"
+
+## Saves you current state as sourcable variables in bash script
+function _save() {
+    echo '#!/usr/bin/env bash' > ${GANTRY_DATA_FILE}
+    echo "export DOCKER_HTTP_PORT=\"${DOCKER_HTTP_PORT}\"" >> ${GANTRY_DATA_FILE}
+    echo "export COMPOSE_PROJECT_NAME=\"${COMPOSE_PROJECT_NAME}\"" >> ${GANTRY_DATA_FILE}
+}
 # Start Docker Containers
 function start() {
     docker-compose up -d
+    _save
 }
 # Stop Docker Containers
 function stop() {
@@ -33,18 +44,19 @@ function build() {
 }
 # Rebuild Docker Containers
 function rebuild() {
-    stop
     build
     start
 }
 # Open in web browser
 function web() {
+    source ${GANTRY_DATA_FILE}
     echo "Opening: http://$(_dockerHost):$DOCKER_HTTP_PORT"
-    open http://$(_dockerHost):$DOCKER_HTTP_PORT
+    hash xdg-open && xdg-open http://$(_dockerHost):$DOCKER_HTTP_PORT || open http://$(_dockerHost):$DOCKER_HTTP_PORT
 }
 # Open terminal console on main docker container
 function console() {
-    docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_1 bash
+    source ${GANTRY_DATA_FILE}
+    docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT} bash
 }
 # Remove all containers and delete volumes
 function remove() {
@@ -64,7 +76,7 @@ function _join { local IFS="$1"; shift; echo "$*"; }
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
     local CMDS="cp -r /ssh /root/.ssh; chmod 0700 -R /root/.ssh; chown -R root.root /root/.ssh; cap $@";
-    docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -v -c "$(echo $CMDS)"
+    docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -c "$(echo $CMDS)"
 }
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function deploy() {
