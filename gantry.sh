@@ -68,7 +68,7 @@ function psql() {
 }
 # Open mysql client on db docker container
 function mysql() {
-    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "MYSQL_PWD=\${MYSQL_ROOT_PASSWORD} mysqldump -uroot \${MYSQL_DATABASE}"
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "MYSQL_PWD=\${MYSQL_ROOT_PASSWORD} mysql -uroot \${MYSQL_DATABASE}"
 }
 # Open terminal console on db docker container
 function console_db() {
