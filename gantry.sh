@@ -78,7 +78,7 @@ function console_db() {
 # Restore DB from file (filename.sql.gz)
 function restore() {
     # TODO: postgres restore
-    zcat -f $1 > data/backup/backup.sql
+    gunzip -c $1 > data/backup/backup.sql
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "echo \"drop database \$MYSQL_DATABASE;create database \$MYSQL_DATABASE\" | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot"
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
     echo "DB Restore using $1"
