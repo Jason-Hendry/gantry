@@ -62,9 +62,13 @@ function console() {
 function remove() {
     docker-compose rm -v
 }
-# Open terminal console on main docker container
+# Open psql client on db docker container
 function psql() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "PGPASSWORD="\$POSTGRES_PASSWORD" psql -U postgres \$POSTGRES_DB"
+}
+# Open mysql client on db docker container
+function mysql() {
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "MYSQL_PWD=\${MYSQL_ROOT_PASSWORD} mysqldump -uroot \${MYSQL_DATABASE}"
 }
 # Open terminal console on db docker container
 function console_db() {
