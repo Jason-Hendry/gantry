@@ -18,6 +18,8 @@ export GANTRY_VERSION="1.1"
 [ -d "${HOME}/.gantry" ] || mkdir -p "${HOME}/.gantry"
 export GANTRY_DATA_FILE="$HOME/.gantry/${COMPOSE_PROJECT_NAME}_${GANTRY_ENV}"
 
+
+
 ## Saves you current state as sourcable variables in bash script
 function _save() {
     echo '#!/usr/bin/env bash' > ${GANTRY_DATA_FILE}
@@ -26,7 +28,62 @@ function _save() {
 }
 # Start Docker Containers
 function start() {
-    docker-compose up -d
+
+    ## If db is not started run build and run main start
+    if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_db_1\b")" ]; then
+        docker-compose up -d
+        _save
+        exit 0
+    fi
+
+    export DOCKER_HTTP_PORT1="$DOCKER_HTTP_PORT";
+    export DOCKER_HTTP_PORT2=$(echo "$DOCKER_HTTP_PORT+1" | bc);
+
+    # Get Port Number
+    if [ "$(docker ps | grep ${COMPOSE_PROJECT_NAME}_main | tr ' ' "\n" | grep tcp)" == "0.0.0.0:$DOCKER_HTTP_PORT1->80/tcp" ]; then
+      export DOCKER_HTTP_PORT="$DOCKER_HTTP_PORT2"
+      export STOP_DOCKER_HTTP_PORT="$DOCKER_HTTP_PORT1"
+    else
+      export DOCKER_HTTP_PORT="$DOCKER_HTTP_PORT1"
+      export STOP_DOCKER_HTTP_PORT="$DOCKER_HTTP_PORT2"
+    fi
+
+    # Build
+    buildDocker || exit 1
+
+    # Ensure only 1 copy
+    if [ -n "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}\b")" ]; then
+        docker stop ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
+    fi
+    if [ -n "$(docker ps -a | grep -E "\b${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}\b")" ]; then
+        docker rm -v ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
+    fi
+
+    # Start
+    docker run -d -p ${DOCKER_HTTP_PORT}:80 \
+      --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
+      -v $PWD/src:/var/www/src \
+      -v $PWD/data/logs:/var/www/app/logs \
+      --restart always \
+      --volumes-from ${COMPOSE_PROJECT_NAME}_data_shared_1 \
+      --link ${COMPOSE_PROJECT_NAME}_db_1:db \
+      -e APP_ENV=${APP_ENV} \
+      ${COMPOSE_PROJECT_NAME}_main || exit 1
+#          -v $PWD/app:/var/www/app \
+      # --link ${COMPOSE_PROJECT_NAME}_memcached_1:memcached \
+      # --link ${COMPOSE_PROJECT_NAME}_elasticsearch_1:elasticsearch \
+
+    # Wait for port to open
+    echo "Waiting for http://$(dockerHost):$DOCKER_HTTP_PORT";
+    until $(curl --output /dev/null --silent --head --fail http://$(dockerHost):${DOCKER_HTTP_PORT}); do
+        printf '.'
+        sleep 1
+    done
+
+    # Stop and remove old container
+    # docker stop ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
+    docker rm -f -v ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
+
     _save
 }
 # Stop Docker Containers
@@ -162,6 +219,90 @@ function _dockerHost {
     fi
     echo $DOCKER_HOST | sed 's/tcp:\/\///' | sed 's/:.*//'
 }
+
+function init() {
+
+
+cat << 'EOF' > docker-compose.yml
+#
+main:
+# build: .
+# image: rainsystems/symfony
+  volumes:
+    - ./app:/var/www/app
+    - ./src:/var/www/src
+    - ./web:/var/www/web
+    - ./composer.json:/var/www/composer.json
+    - ./composer.lock:/var/www/composer.lock
+  container_name: "${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}"
+  ports:
+    - "$DOCKER_HTTP_PORT:80"
+  links:
+    - db
+  restart: always
+  volumes_from:
+    - data_shared
+  environment:
+  #
+  # APP_ENV: "$APP_ENV"
+data_shared:
+#  image: php:5.4-apache
+#  image: php:5.4-nginx
+  volumes:
+    - /var/www/app/cache
+    - /var/www/app/sessions
+    - /var/www/app/logs
+  command: true
+db:
+# Uncomment your preferred DB
+# image: mysql:5.7
+# image: postgres:9.4
+  restart: always
+  volumes_from:
+    - data_db
+  environment:
+    MYSQL_ROOT_PASSWORD: 62X05uX71rZlD2I
+    MYSQL_DATABASE: symfony
+  expose:
+    - 3306
+data_db:
+# Uncomment matching DB from above
+# image: mysql:5.7
+# image: postgres:9.4
+  volumes:
+#    - /var/lib/mysql
+#    - /var/lib/postgresql/data
+  command: true
+
+
+EOF
+
+cat << EOF > gantry.sh
+#!/bin/sh
+
+export COMPOSE_PROJECT_NAME="project_name"
+
+# Use unique ports for each project that will run simultansiously, mainly for dev env.
+export DOCKER_HTTP_PORT="1090" # These should site behind a nginx reverse proxy/lb
+
+# Set the default App Env
+[ -z $APP_ENV ] && export APP_ENV="prod"
+EOF
+
+cat << EOF > entrypoint.sh
+#!/usr/bin/env bash
+
+## Build Project
+## Symfony 2.*
+# rm -rf app/cache/*
+# composer install
+# ./app/console assetic:dump
+# rm -rf app/cache/*
+# chown -R www-data.www-data app/cache app/logs app/var/sessions
+
+# Start HTTP Server
+apache2-foreground
+EOF
 
 function _exec() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT} $@

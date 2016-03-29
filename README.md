@@ -44,6 +44,32 @@ gantry restart
 gantry rebuild
 ```
 
+### Per Project Setup
+
+Use this convention to name your components and main container
+```yaml
+# docker-compose.yml
+main:
+  ...
+  container_name: "${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}"
+  ...
+db:
+  ...
+  image: mysql:5.7
+# image: postgres:9.4
+```
+
+
+```sh
+#!/bin/sh
+
+export COMPOSE_PROJECT_NAME="project_name"
+
+# Use unique ports for each project that will run simultansiously, mainly for dev env.
+export DOCKER_HTTP_PORT="1090" # These should site behind a nginx reverse proxy/lb
+```
+
+
 ## Complementary tools
 
 Provide version consistancy amoung developers
