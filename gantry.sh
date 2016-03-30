@@ -49,7 +49,7 @@ function start() {
     fi
 
     # Build
-    buildDocker || exit 1
+    build || exit 1
 
     # Ensure only 1 copy
     if [ -n "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}\b")" ]; then
