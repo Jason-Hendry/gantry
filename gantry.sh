@@ -74,8 +74,8 @@ function start() {
       # --link ${COMPOSE_PROJECT_NAME}_elasticsearch_1:elasticsearch \
 
     # Wait for port to open
-    echo "Waiting for http://$(dockerHost):$DOCKER_HTTP_PORT";
-    until $(curl --output /dev/null --silent --head --fail http://$(dockerHost):${DOCKER_HTTP_PORT}); do
+    echo "Waiting for http://$(_dockerHost):$DOCKER_HTTP_PORT";
+    until $(curl --output /dev/null --silent --head --fail http://$(_dockerHost):${DOCKER_HTTP_PORT}); do
         printf '.'
         sleep 1
     done
