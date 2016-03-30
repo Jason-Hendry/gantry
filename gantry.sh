@@ -60,19 +60,15 @@ function start() {
     fi
 
     # Start
-    docker-compose start main
-#    docker run -d -p ${DOCKER_HTTP_PORT}:80 \
-#      --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
-#      -v $PWD/src:/var/www/src \
-#      -v $PWD/data/logs:/var/www/app/logs \
-#      --restart always \
-#      --volumes-from ${COMPOSE_PROJECT_NAME}_data_shared_1 \
-#      --link ${COMPOSE_PROJECT_NAME}_db_1:db \
-#      -e APP_ENV=${APP_ENV} \
-#      ${COMPOSE_PROJECT_NAME}_main || exit 1
-#          -v $PWD/app:/var/www/app \
-      # --link ${COMPOSE_PROJECT_NAME}_memcached_1:memcached \
-      # --link ${COMPOSE_PROJECT_NAME}_elasticsearch_1:elasticsearch \
+    docker run -d -p ${DOCKER_HTTP_PORT}:80 \
+      --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
+      $(_mainVolumes) \
+      --restart always \
+      $(_mainVolumesFrom) \
+      --link ${COMPOSE_PROJECT_NAME}_db_1:db \
+      $(_mainVolumes) \
+      ${COMPOSE_PROJECT_NAME}_main || exit 1
+          -v $PWD/app:/var/www/app \
 
     # Wait for port to open
     echo "Waiting for http://$(_dockerHost):$DOCKER_HTTP_PORT";
@@ -312,6 +308,19 @@ function _exec() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT} $@
 }
 
+# Convert docker-compose volumes into docker run volumes
+function _mainVolumes() {
+  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | sed 's/^-/-v /' | tr "\n" ' '
+}
+function _mainVolumesFrom() {
+  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes_from:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--volumes_from \$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/$/_1/' | tr "\n" ' '
+}
+function _mainLinks() {
+  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'links:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--links \$\{COMPOSE_PROJECT_NAME\}_/' | sed -E "s/\}_(.*)$/\}_\1_1:\1/" | tr "\n" ' '
+}
+function _mainEnv() {
+  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'environment:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | tr ':' '=' | sed 's/^[-*]/-e /' | tr "\n" ' '
+}
 
 if [ -z $1 ]; then
     echo "Usage $0 [command]"
