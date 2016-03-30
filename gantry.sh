@@ -60,15 +60,16 @@ function start() {
     fi
 
     # Start
-    docker run -d -p ${DOCKER_HTTP_PORT}:80 \
-      --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
-      -v $PWD/src:/var/www/src \
-      -v $PWD/data/logs:/var/www/app/logs \
-      --restart always \
-      --volumes-from ${COMPOSE_PROJECT_NAME}_data_shared_1 \
-      --link ${COMPOSE_PROJECT_NAME}_db_1:db \
-      -e APP_ENV=${APP_ENV} \
-      ${COMPOSE_PROJECT_NAME}_main || exit 1
+    docker-compose start main
+#    docker run -d -p ${DOCKER_HTTP_PORT}:80 \
+#      --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
+#      -v $PWD/src:/var/www/src \
+#      -v $PWD/data/logs:/var/www/app/logs \
+#      --restart always \
+#      --volumes-from ${COMPOSE_PROJECT_NAME}_data_shared_1 \
+#      --link ${COMPOSE_PROJECT_NAME}_db_1:db \
+#      -e APP_ENV=${APP_ENV} \
+#      ${COMPOSE_PROJECT_NAME}_main || exit 1
 #          -v $PWD/app:/var/www/app \
       # --link ${COMPOSE_PROJECT_NAME}_memcached_1:memcached \
       # --link ${COMPOSE_PROJECT_NAME}_elasticsearch_1:elasticsearch \
