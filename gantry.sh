@@ -48,6 +48,8 @@ function start() {
       export STOP_DOCKER_HTTP_PORT="$DOCKER_HTTP_PORT2"
     fi
 
+
+
     # Build
     build || exit 1
 
@@ -59,16 +61,17 @@ function start() {
         docker rm -v ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
     fi
 
-    # Start
-    docker run -d -p ${DOCKER_HTTP_PORT}:80 \
+    DOCKER_RUN_CMD="$(echo docker run -d -p ${DOCKER_HTTP_PORT}:80 \
       --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
       $(_mainVolumes) \
       --restart always \
       $(_mainVolumesFrom) \
-      --link ${COMPOSE_PROJECT_NAME}_db_1:db \
-      $(_mainVolumes) \
-      ${COMPOSE_PROJECT_NAME}_main || exit 1
-          -v $PWD/app:/var/www/app \
+      $(_mainLinks) \
+      $(_mainEnv) \
+      ${COMPOSE_PROJECT_NAME}_main)"
+
+    # Start
+    eval "$DOCKER_RUN_CMD" || exit 1
 
     # Wait for port to open
     echo "Waiting for http://$(_dockerHost):$DOCKER_HTTP_PORT";
@@ -219,18 +222,18 @@ function _dockerHost {
 
 function init() {
 
-
 cat << 'EOF' > docker-compose.yml
 #
 main:
 # build: .
 # image: rainsystems/symfony
   volumes:
-    - ./app:/var/www/app
-    - ./src:/var/www/src
-    - ./web:/var/www/web
-    - ./composer.json:/var/www/composer.json
-    - ./composer.lock:/var/www/composer.lock
+#    Symfony Volumes
+#    - $PWD/app:/var/www/app
+#    - $PWD/src:/var/www/src
+#    - $PWD/web:/var/www/web
+#    - $PWD/composer.json:/var/www/composer.json
+#    - $PWD/composer.lock:/var/www/composer.lock
   container_name: "${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}"
   ports:
     - "$DOCKER_HTTP_PORT:80"
@@ -240,8 +243,8 @@ main:
   volumes_from:
     - data_shared
   environment:
-  #
   # APP_ENV: "$APP_ENV"
+  # SYMFONY_DATABASE_PASSWORD: "$DB_ROOT_PW"
 data_shared:
 #  image: php:5.4-apache
 #  image: php:5.4-nginx
@@ -255,10 +258,13 @@ db:
 # image: mysql:5.7
 # image: postgres:9.4
   restart: always
+  volumes:
+    # Required for gantry backup and restore commands
+    - $PWD/data/backup:/backup
   volumes_from:
     - data_db
   environment:
-    MYSQL_ROOT_PASSWORD: 62X05uX71rZlD2I
+    MYSQL_ROOT_PASSWORD: "$DB_ROOT_PW"
     MYSQL_DATABASE: symfony
   expose:
     - 3306
@@ -284,6 +290,11 @@ export DOCKER_HTTP_PORT="1090" # These should site behind a nginx reverse proxy/
 
 # Set the default App Env
 [ -z $APP_ENV ] && export APP_ENV="prod"
+
+# Database Password for containers
+[ -f secrets.sh ] && . secrets.sh
+[ -z $DB_ROOT_PW ] && export DB_ROOT_PW="dev-password-not-secure"
+
 EOF
 
 cat << EOF > entrypoint.sh
@@ -313,13 +324,13 @@ function _mainVolumes() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | sed 's/^-/-v /' | tr "\n" ' '
 }
 function _mainVolumesFrom() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes_from:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--volumes_from \$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/$/_1/' | tr "\n" ' '
+  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes_from:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--volumes-from \"\$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/$/_1\"/' | tr "\n" ' '
 }
 function _mainLinks() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'links:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--links \$\{COMPOSE_PROJECT_NAME\}_/' | sed -E "s/\}_(.*)$/\}_\1_1:\1/" | tr "\n" ' '
+  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'links:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--link \"\$\{COMPOSE_PROJECT_NAME\}_/' | sed -E "s/\}_(.*)$/\}_\1_1:\1\"/" | tr "\n" ' '
 }
 function _mainEnv() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'environment:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | tr ':' '=' | sed 's/^[-*]/-e /' | tr "\n" ' '
+  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'environment:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -2 | tr -d ' ' | tr ':' '=' | sed 's/^/-e /' | tr "\n" ' '
 }
 
 if [ -z $1 ]; then
