@@ -61,7 +61,7 @@ function start() {
         docker rm -v ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
     fi
 
-    DOCKER_RUN_CMD="$(echo docker run -d -p ${DOCKER_HTTP_PORT}:80 \
+    DOCKER_RUN_CMD="$(echo docker run -rm -d -p ${DOCKER_HTTP_PORT}:80 \
       --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
       $(_mainVolumes) \
       --restart always \
@@ -113,7 +113,7 @@ function web() {
 # Open terminal console on main docker container
 function console() {
     source ${GANTRY_DATA_FILE}
-    docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT} bash
+    docker exec -it $(_mainContainer) bash
 }
 # Remove all containers and delete volumes
 function remove() {
@@ -157,6 +157,10 @@ function cap() {
     local CMDS="cp -r /ssh /root/.ssh; chmod 0700 -R /root/.ssh; chown -R root.root /root/.ssh; cap $@";
     docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -c "$(echo $CMDS)"
 }
+# run composer command
+function composer() {
+    docker run -it --rm -v `pwd`:/app -v $SSH_DIR:/ssh composer/composer $@
+}
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function deploy() {
     docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -v -c "cp -r /ssh /root/.ssh; chmod 0700 -R /root/.ssh; chown -R root.root /root/.ssh; cap $1 deploy"
@@ -169,6 +173,11 @@ function sass() {
 function bower() {
     docker run -it --rm -v `pwd`:/source -v $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
 }
+# run gulp commands
+function gulp() {
+    docker run -it --rm -v `pwd`:/usr/src/web nivaha/gulp $@
+}
+
 # print version
 function version() {
     echo "Gantry v${GANTRY_VERSION} - Author Jason Hendry https://github.com/Jason-Hendry/gantry"
@@ -199,7 +208,7 @@ function symfony() {
 
 # tail the logs from the main container
 function logs() {
-    docker logs -f ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT}
+    docker logs -f $(_mainContainer)
 }
 
 # create fosUserBundle user (username email password role)
@@ -207,9 +216,13 @@ function create-user() {
     _exec ./app/console fos:user:create $1 $2 $3
     _exec ./app/console fos:user:promote $1 $4
 }
-function _mainContainer {
-    # Grab the first non-blank line
+
+function _mainContainerId {
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
+}
+function _mainContainer {
+    source ${GANTRY_DATA_FILE}
+    echo ${COMPOSE_PROJECT_NAME}_$(_mainContainerId)_${DOCKER_HTTP_PORT}
 }
 function _dockerHost {
     if [ -z $DOCKER_HOST ]
@@ -316,7 +329,7 @@ EOF
 # End of init()
 
 function _exec() {
-    docker exec -it ${COMPOSE_PROJECT_NAME}_$(_mainContainer)_${DOCKER_HTTP_PORT} $@
+    docker exec -it $(_mainContainer) $@
 }
 
 # Convert docker-compose volumes into docker run volumes
