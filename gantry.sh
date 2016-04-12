@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export GANTRY_VERSION="1.1"
+export GANTRY_VERSION="1.2"
 
 [ -z $COMPOSE_PROJECT_NAME ] && export COMPOSE_PROJECT_NAME="$(basename $(pwd))"
 [ -z $GANTRY_ENV ] && export GANTRY_ENV="prod"
@@ -61,7 +61,7 @@ function start() {
         docker rm -v ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
     fi
 
-    DOCKER_RUN_CMD="$(echo docker run -rm -d -p ${DOCKER_HTTP_PORT}:80 \
+    DOCKER_RUN_CMD="$(echo docker run -d -p ${DOCKER_HTTP_PORT}:80 \
       --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
       $(_mainVolumes) \
       --restart always \
