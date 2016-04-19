@@ -113,6 +113,7 @@ function web() {
 # Open terminal console on main docker container
 function console() {
     source ${GANTRY_DATA_FILE}
+    echo $(_mainContainer)
     docker exec -it $(_mainContainer) bash
 }
 # Remove all containers and delete volumes
@@ -154,8 +155,7 @@ function _join { local IFS="$1"; shift; echo "$*"; }
 
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
-    local CMDS="cp -r /ssh /root/.ssh; chmod 0700 -R /root/.ssh; chown -R root.root /root/.ssh; cap $@";
-    docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -c "$(echo $CMDS)"
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v `pwd`:/app -v $SSH_DIR:/ssh rainsystems/cap:3.4.0 $@
 }
 # run composer command
 function composer() {
@@ -172,6 +172,10 @@ function sass() {
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
     docker run -it --rm -v `pwd`:/source -v $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
+}
+# run behat command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
+function behat() {
+    docker run -it --rm -v $PWD:/app rainsystems/behat:3.1.0 $@
 }
 # run gulp commands
 function gulp() {
@@ -222,7 +226,7 @@ function _mainContainerId {
 }
 function _mainContainer {
     source ${GANTRY_DATA_FILE}
-    echo ${COMPOSE_PROJECT_NAME}_$(_mainContainerId)_${DOCKER_HTTP_PORT}
+    echo ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
 }
 function _dockerHost {
     if [ -z $DOCKER_HOST ]
@@ -240,7 +244,10 @@ cat << 'EOF' > docker-compose.yml
 main:
 # build: .
 # image: rainsystems/symfony
+# image: wordpress:4.5.0-apache
   volumes:
+#    WordPress Volumes
+#    - $PWD/wordpress:/var/www/html
 #    Symfony Volumes
 #    - $PWD/app:/var/www/app
 #    - $PWD/src:/var/www/src
@@ -252,20 +259,24 @@ main:
     - "$DOCKER_HTTP_PORT:80"
   links:
     - db
+# Wordpress
+#    - db:mysql
   restart: always
-  volumes_from:
-    - data_shared
+#  volumes_from:
+#    - data_shared
   environment:
   # APP_ENV: "$APP_ENV"
   # SYMFONY_DATABASE_PASSWORD: "$DB_ROOT_PW"
-data_shared:
+
+#data_shared:
 #  image: php:5.4-apache
 #  image: php:5.4-nginx
-  volumes:
-    - /var/www/app/cache
-    - /var/www/app/sessions
-    - /var/www/app/logs
-  command: true
+#  volumes:
+#    - /var/www/app/cache
+#    - /var/www/app/sessions
+#    - /var/www/app/logs
+#  command: /bin/true
+
 db:
 # Uncomment your preferred DB
 # image: mysql:5.7
@@ -278,7 +289,8 @@ db:
     - data_db
   environment:
     MYSQL_ROOT_PASSWORD: "$DB_ROOT_PW"
-    MYSQL_DATABASE: symfony
+#    MYSQL_DATABASE: symfony
+#    MYSQL_DATABASE: wordpress
   expose:
     - 3306
 data_db:
@@ -288,8 +300,7 @@ data_db:
   volumes:
 #    - /var/lib/mysql
 #    - /var/lib/postgresql/data
-  command: true
-
+  command: /bin/true
 
 EOF
 
@@ -328,10 +339,74 @@ EOF
 }
 # End of init()
 
+
+function wordpress() {
+
+    local PROJECT_NAME="`basename .`"
+    local RAND_PORT="`cat /dev/urandom | tr -dc '0-9' | fold -w 4 | head -n 1`"
+#    $ [ $((rand_port%2)) -eq 0 ] && echo "even"
+    exit;
+
+cat << EOF > docker-compose.yml
+#
+main:
+  image: wordpress:4.5.0-apache
+  volumes:
+    - \$PWD/wordpress:/var/www/html
+  container_name: "\$\{COMPOSE_PROJECT_NAME}_main_\$\{DOCKER_HTTP_PORT}"
+  ports:
+    - "\$DOCKER_HTTP_PORT:80"
+  links:
+    - db:mysql
+  restart: always
+
+db:
+  image: mysql:5.7
+  restart: always
+  volumes:
+    # Required for gantry backup and restore commands
+    - \$PWD/data/backup:/backup
+  volumes_from:
+    - data_db
+  environment:
+    MYSQL_ROOT_PASSWORD: "\$DB_ROOT_PW"
+    MYSQL_DATABASE: wordpress
+  expose:
+    - 3306
+data_db:
+  image: mysql:5.7
+  volumes:
+    - /var/lib/mysql
+  command: /bin/true
+
+EOF
+
+cat << EOF > gantry.sh
+#!/bin/sh
+
+export COMPOSE_PROJECT_NAME="${PROJECT_NAME}"
+
+# Use unique ports for each project that will run simultansiously, mainly for dev env.
+export DOCKER_HTTP_PORT="1090" # These should site behind a nginx reverse proxy/lb
+
+# Set the default App Env
+[ -z $APP_ENV ] && export APP_ENV="prod"
+
+# Database Password for containers
+[ -f secrets.sh ] && . secrets.sh
+[ -z $DB_ROOT_PW ] && export DB_ROOT_PW="dev-password-not-secure"
+
+EOF
+
+    mkdir wordpress
+    mkdir data
+    # Sticky User
+    chmod 1755 wordpress data
+}
+
 function _exec() {
     docker exec -it $(_mainContainer) $@
 }
-
 # Convert docker-compose volumes into docker run volumes
 function _mainVolumes() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | sed 's/^-/-v /' | tr "\n" ' '
