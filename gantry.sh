@@ -188,19 +188,10 @@ function version() {
 }
 # Update gantry
 function self-update() {
-    if [ -w $0 ]; then
-        curl -o $0 https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
-        if [ !-x $0 ]; then
-            chmod +x $0
-        fi
-    else
-        sudo curl -o $0 https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
-        if [ !-x $0 ]; then
-            sudo chmod +x $0
-        fi
-    fi
+    # replace gantry file with github master copy
+    sudo curl -o `which gantry` https://raw.githubusercontent.com/Jason-Hendry/gantry/master/gantry.sh
 }
-
+:
 # run unit tests on app folder (extra args passed to phpunit command)
 function test() {
     _exec phpunit -c $PHPUNIT_CONF_PATH $@
