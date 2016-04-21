@@ -200,7 +200,7 @@ function pull () {
             docker pull rainsystems/behat:3.1.0
         ;;
         'gulp')
-            docker pull nivaha/gulp
+            docker pull rainsystems/gulp
         ;;
         'bower')
             docker pull rainsystems/bower:1.7.2
