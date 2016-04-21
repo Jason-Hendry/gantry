@@ -169,17 +169,49 @@ function deploy() {
 function sass() {
     docker run -it --rm -v `pwd`:/source rainsystems/sass:3.4.21 $@
 }
-# run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
-function bower() {
-    docker run -it --rm -v `pwd`:/source -v $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
-}
 # run behat command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function behat() {
-    docker run -it --rm -v $PWD:/app rainsystems/behat:3.1.0 $@
+    docker run -it --rm -v $PWD:/app -e TRAVIS_BUILD_NUMBER=$CI_BUILD_NUMBER -e SAUCE_USERNAME=$SAUCE_USERNAME -e SAUCE_ACCESS_KEY=$SAUCE_ACCESS_KEY rainsystems/behat:3.1.0 $@
+}
+# wraith
+function wraith() {
+    docker run -it --rm -v $PWD:/app wraith $@
+}
+# run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
+function node() {
+    docker run -it --rm -w="/app" --entrypoint node -v `pwd`:/app node:5-slim $@
+}
+# run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
+function npm() {
+    docker run -it --rm -w="/app" --entrypoint npm -v `pwd`:/app node:5-slim $@
+}
+# run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
+function bower() {
+    docker run -it --rm -v `pwd`:/app -v $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
 }
 # run gulp commands
 function gulp() {
-    docker run -it --rm -v `pwd`:/usr/src/web nivaha/gulp $@
+    docker run -it --rm -v `pwd`:/app rainsystems/gulp $@
+}
+
+function pull () {
+    case $1 in
+        'behat')
+            docker pull rainsystems/behat:3.1.0
+        ;;
+        'gulp')
+            docker pull nivaha/gulp
+        ;;
+        'bower')
+            docker pull rainsystems/bower:1.7.2
+        ;;
+        'sass')
+            docker pull rainsystems/sass:3.4.21
+        ;;
+        'cap')
+            docker pull rainsystems/cap:3.4.0
+        ;;
+    esac
 }
 
 # print version
