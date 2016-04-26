@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export GANTRY_VERSION="1.2"
+export GANTRY_VERSION="1.3"
 
 [ -z $COMPOSE_PROJECT_NAME ] && export COMPOSE_PROJECT_NAME="$(basename $(pwd))"
 [ -z $GANTRY_ENV ] && export GANTRY_ENV="prod"
@@ -18,8 +18,6 @@ export GANTRY_VERSION="1.2"
 [ -d "${HOME}/.gantry" ] || mkdir -p "${HOME}/.gantry"
 export GANTRY_DATA_FILE="$HOME/.gantry/${COMPOSE_PROJECT_NAME}_${GANTRY_ENV}"
 
-
-
 ## Saves you current state as sourcable variables in bash script
 function _save() {
     echo '#!/usr/bin/env bash' > ${GANTRY_DATA_FILE}
@@ -28,7 +26,6 @@ function _save() {
 }
 # Start Docker Containers
 function start() {
-
     ## If db is not started run build and run main start
     if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_db_1\b")" ]; then
         docker-compose up -d
@@ -119,7 +116,7 @@ function console() {
     echo $(_mainContainer)
     docker exec -it $(_mainContainer) bash
 }
-# Remove all containers and delete volumes
+# Remove all containers and delete volumes (including DB data and uploaded files)
 function remove() {
     docker-compose rm -v
 }
