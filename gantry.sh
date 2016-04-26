@@ -154,8 +154,6 @@ function backup() {
     echo "DB Backup $BU_FILE"
 }
 
-function _join { local IFS="$1"; shift; echo "$*"; }
-
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
     [ ! -d "config" ] && mkdir config && chmod 1755 config
