@@ -104,11 +104,14 @@ function rebuild() {
     build
     start
 }
-# Open in web browser
+# Open in web browser (or default application for http protocol)
 function web() {
     source ${GANTRY_DATA_FILE}
-    echo "Opening: http://$(_dockerHost):$DOCKER_HTTP_PORT"
-    hash xdg-open && xdg-open http://$(_dockerHost):$DOCKER_HTTP_PORT || open http://$(_dockerHost):$DOCKER_HTTP_PORT
+    echo "Opening: http://$(_dockerHost):${DOCKER_HTTP_PORT}"
+
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(dockerHost):$DOCKER_HTTP_PORT/ 2> /dev/null > /dev/null || \
+    open http://$(dockerHost):$DOCKER_HTTP_PORT// 2> /dev/null > /dev/null
 }
 # Open terminal console on main docker container
 function console() {
@@ -155,7 +158,8 @@ function _join { local IFS="$1"; shift; echo "$*"; }
 
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
-    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v `pwd`:/app -v $SSH_DIR:/ssh rainsystems/cap:3.4.0 $@
+    [ ! -d "config" ] && mkdir config && chmod 1755 config
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) -v $HOME/.ssh:/root/.ssh -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v `pwd`:/app -v $SSH_DIR:/ssh rainsystems/cap:3.4.0 $@
 }
 # run composer command
 function composer() {
