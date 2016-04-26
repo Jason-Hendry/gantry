@@ -159,7 +159,7 @@ function _join { local IFS="$1"; shift; echo "$*"; }
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
     [ ! -d "config" ] && mkdir config && chmod 1755 config
-    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) -v $HOME/.ssh:/root/.ssh -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v `pwd`:/app -v $SSH_DIR:/ssh rainsystems/cap:3.4.0 $@
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) -v $HOME/.ssh:/ssh -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v `pwd`:/app -v $SSH_DIR:/ssh rainsystems/cap:3.4.0 $@
 }
 # run composer command
 function composer() {
