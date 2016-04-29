@@ -107,8 +107,8 @@ function web() {
     echo "Opening: http://$(_dockerHost):${DOCKER_HTTP_PORT}"
 
     # Try Linux xdg-open otherwise OSX open
-    xdg-open http://$(dockerHost):$DOCKER_HTTP_PORT/ 2> /dev/null > /dev/null || \
-    open http://$(dockerHost):$DOCKER_HTTP_PORT// 2> /dev/null > /dev/null
+    xdg-open http://$(_dockerHost):$DOCKER_HTTP_PORT/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):$DOCKER_HTTP_PORT// 2> /dev/null > /dev/null
 }
 # Open terminal console on main docker container
 function console() {
@@ -155,6 +155,33 @@ function backup() {
 function cap() {
     [ ! -d "config" ] && mkdir config && chmod 1755 config
     docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) -v $HOME/.ssh:/ssh -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v `pwd`:/app -v $SSH_DIR:/ssh rainsystems/cap:3.4.0 $@
+}
+# run ansible command
+function ansible() {
+    [ -f "aws.sh" ] && . aws.sh
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+                        -v $HOME/.ssh:/ssh \
+                        -v `pwd`:/app \
+                        -v $SSH_DIR:/ssh \
+                        -e EC2_INV="TRUE" \
+                        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+                        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                        rainsystems/ansible $@
+}
+# run playbook-playbook command
+function playbook() {
+    [ -f "aws.sh" ] && . aws.sh
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+                        -v $HOME/.ssh:/ssh \
+                        -v `pwd`:/app \
+                        -v $SSH_DIR:/ssh \
+                        -e PLAYBOOK="TRUE" \
+                        -e EC2_INV="TRUE" \
+                        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+                        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                        rainsystems/ansible -c ssh "$@"
 }
 # run composer command
 function composer() {
@@ -213,7 +240,7 @@ function pull () {
     esac
 }
 
-# print version
+# Print version
 function version() {
     echo "Gantry v${GANTRY_VERSION} - Author Jason Hendry https://github.com/Jason-Hendry/gantry"
 }
@@ -227,10 +254,27 @@ function self-update() {
 function test() {
     _exec phpunit -c $PHPUNIT_CONF_PATH $@
 }
+
+##### Symfony Commands #######
+
 # run symfony console (./app/console ...)
 function symfony() {
     _exec ./app/console $@
 }
+# run symfony console (./app/console ...)
+function symfony-schema() {
+    _exec ./app/console doctrine:schema:update --dump-sql
+    if [ "$1" == "-f" ]; then
+        _exec ./app/console doctrine:schema:update --force
+    else
+        read -r -p "Make this changes now? [y/N] " response
+        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+        then
+            _exec ./app/console doctrine:schema:update --force
+        fi
+    fi
+}
+
 
 # tail the logs from the main container
 function logs() {
@@ -242,6 +286,8 @@ function create-user() {
     _exec ./app/console fos:user:create $1 $2 $3
     _exec ./app/console fos:user:promote $1 $4
 }
+
+
 
 function _mainContainerId {
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
@@ -362,7 +408,97 @@ EOF
 # End of init()
 
 
-function wordpress() {
+function init-symfony() {
+    local PROJECT_NAME="`basename .`"
+    local RAND_PORT="`cat /dev/urandom | tr -dc '0-9' | fold -w 4 | head -n 1`"
+
+cat << 'EOF' > docker-compose.yml
+#
+main:
+  image: rainsystems/symfony
+  volumes:
+    - $PWD/app:/var/www/app
+    - $PWD/src:/var/www/src
+    - $PWD/web:/var/www/web
+    - $PWD/composer.json:/var/www/composer.json
+    - $PWD/composer.lock:/var/www/composer.lock
+  container_name: "${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}"
+  ports:
+    - "$DOCKER_HTTP_PORT:80"
+  links:
+    - db
+  restart: always
+  volumes_from:
+    - data_shared
+  environment:
+    APP_ENV: "$APP_ENV"
+    SYMFONY_DATABASE_PASSWORD: "$DB_ROOT_PW"
+
+data_shared:
+  image: rainsystems/symfony
+  volumes:
+    - /var/www/app/cache
+    - /var/www/app/sessions
+    - /var/www/app/logs
+  command: /bin/true
+
+db:
+  image: postgres:9.4
+  restart: always
+  volumes:
+    # Required for gantry backup and restore commands
+    - $PWD/data/backup:/backup
+  volumes_from:
+    - data_db
+  environment:
+    MYSQL_ROOT_PASSWORD: "$DB_ROOT_PW"
+    MYSQL_DATABASE: symfony
+  expose:
+    - 3306
+data_db:
+  image: postgres:9.4
+  volumes:
+    - /var/lib/postgresql/data
+  command: /bin/true
+EOF
+
+cat << EOF > gantry.sh
+#!/bin/sh
+
+export COMPOSE_PROJECT_NAME="${PROJECT_NAME}"
+
+# Use unique ports for each project that will run simultansiously, mainly for dev env.
+export DOCKER_HTTP_PORT="${RAND_PORT}" # These should site behind a nginx reverse proxy/lb
+
+# Set the default App Env
+[ -z \$APP_ENV ] && export APP_ENV="prod"
+
+# Database Password for containers
+[ -f secrets.sh ] && . secrets.sh
+[ -z \$DB_ROOT_PW ] && export DB_ROOT_PW="dev-password-not-secure"
+
+EOF
+
+cat << EOF > entrypoint.sh
+#!/usr/bin/env bash
+
+## Build Project
+## Symfony 2.*
+# rm -rf app/cache/*
+# composer install
+# ./app/console assetic:dump
+# rm -rf app/cache/*
+# chown -R www-data.www-data app/cache app/logs app/var/sessions
+
+# Start HTTP Server
+apache2-foreground
+EOF
+
+}
+# End of init()
+
+
+function init-wordpress() {
 
     local PROJECT_NAME="`basename .`"
     local RAND_PORT="`cat /dev/urandom | tr -dc '0-9' | fold -w 4 | head -n 1`"
@@ -412,11 +548,11 @@ export COMPOSE_PROJECT_NAME="${PROJECT_NAME}"
 export DOCKER_HTTP_PORT="1090" # These should site behind a nginx reverse proxy/lb
 
 # Set the default App Env
-[ -z $APP_ENV ] && export APP_ENV="prod"
+[ -z \$APP_ENV ] && export APP_ENV="prod"
 
 # Database Password for containers
 [ -f secrets.sh ] && . secrets.sh
-[ -z $DB_ROOT_PW ] && export DB_ROOT_PW="dev-password-not-secure"
+[ -z \$DB_ROOT_PW ] && export DB_ROOT_PW="dev-password-not-secure"
 
 EOF
 
