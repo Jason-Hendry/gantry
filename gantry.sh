@@ -215,6 +215,7 @@ function npm() {
 function bower() {
     [ -d "bower_components" ] || mkdir bower_components
     [ -z "${BOWER_BATCH}" ] && echo "Gantry Bower Interactive Mode" && local BOWER_IT="-it"
+    [ -n "${BOWER_BATCH}" ] && echo "Gantry Bower Batch Mode" && local BOWER_IT="--config.interactive=false"
     docker run ${BOWER_IT} --rm \
         -e BOWER_UID="`id -u`" \
         -e BOWER_GID="`id -g`" \
