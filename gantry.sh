@@ -214,7 +214,7 @@ function npm() {
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
     [ -d "bower_components" ] || mkdir bower_components
-    [ -z "${BOWER_BATCH}" ] && local BOWER_IT="-it"
+    [ -z "${BOWER_BATCH}" ] && echo "Gantry Bower Interactive Mode" && local BOWER_IT="-it"
     docker run ${BOWER_IT} --rm \
         -e BOWER_UID="`id -u`" \
         -e BOWER_GID="`id -g`" \
