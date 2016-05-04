@@ -265,6 +265,7 @@ function gulp() {
 }
 
 function pull () {
+    if [ -n "$1" ]; then
     case $1 in
         'behat')
             docker pull rainsystems/behat:3.1.0
@@ -282,6 +283,14 @@ function pull () {
             docker pull rainsystems/cap:3.4.0
         ;;
     esac
+    else
+        echo "Pulling all gantry images"
+        docker pull rainsystems/behat:3.1.0
+        docker pull rainsystems/gulp
+        docker pull rainsystems/bower:1.7.2
+        docker pull rainsystems/sass:3.4.21
+        docker pull rainsystems/cap:3.4.0
+    fi
 }
 
 # Print version
@@ -346,11 +355,20 @@ function put() {
     rm -rf $folderName
 }
 
-function staging-pull() {
+# Pull all the wordpress file and db changes from staging  (Warning Replaces all local changes)
+function wp-pull() {
     ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry backup gantry-staging-pull && gantry grab /var/www/html/wp-content/uploads gantry-staging-pull-uploads" && \
     scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
     gantry restore gantry-staging-pull.sql.gz && \
     gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads
+}
+# Push all the local wordpress file and db changes to staging (Warning Replaces all staging changes)
+function wp-push() {
+    backup gantry-staging-push &&\
+    gantry grab /var/www/html/wp-content/uploads gantry-staging-push-uploads &&\
+    scp gantry-staging-push* $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/ && \
+    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry restore gantry-staging-pull.sql.gz" && \
+    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads"
 }
 
 
