@@ -30,6 +30,7 @@ function start() {
     if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_db_1\b")" ]; then
         docker-compose up -d
         _save
+        web
         exit 0
     fi
 
@@ -78,10 +79,12 @@ function start() {
     done
 
     # Stop and remove old container
-    # docker stop ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
-    docker rm -f -v ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
+    if [ -n "$(docker ps -a | grep -E "\b${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}\b")" ]; then
+        docker rm -f -v ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
+    fi
 
     _save
+    web
 }
 # Stop Docker Containers
 function stop() {
