@@ -320,6 +320,7 @@ function symfony() {
 # run symfony console (./app/console ...)
 function symfony-schema() {
     _exec ./app/console doctrine:schema:update --dump-sql
+
     if [ "$1" == "-f" ]; then
         _exec ./app/console doctrine:schema:update --force
     else
@@ -329,6 +330,28 @@ function symfony-schema() {
             _exec ./app/console doctrine:schema:update --force
         fi
     fi
+}
+# run symfony schema update
+function sf-schema() {
+    _exec console doctrine:schema:update --dump-sql
+
+    if [ "$1" == "-f" ]; then
+        _exec console doctrine:schema:update --force
+    else
+        read -r -p "Make this changes now? [y/N] " response
+        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+        then
+            _exec console doctrine:schema:update --force
+        fi
+    fi
+}
+# run symfony schema update
+function sf-entity() {
+    _exec console doctrine:generate:entity
+}
+# run symfony schema update
+function sf-crud() {
+    _exec console doctrine:generate:crud
 }
 
 
