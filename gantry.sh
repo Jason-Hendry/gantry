@@ -99,6 +99,7 @@ function build() {
 # Rebuild Docker Containers
 function rebuild() {
     build
+    stop
     start
 }
 # Open in web browser (or default application for http protocol)
@@ -330,6 +331,27 @@ function create-user() {
     _exec ./app/console fos:user:promote $1 $4
 }
 
+# Grab and tare gzip a folder from the main container
+function grab() {
+    echo docker cp $(_mainContainer):$1 $2
+    docker cp $(_mainContainer):$1 $2
+    tar zcvpf $2.tar.gz $2
+    rm -rf $2
+}
+# Put the content of a tar.gz into the main docker container
+function put() {
+    tar zxvpf $1
+    local folderName="`echo $1 | sed 's/\.tar\.gz$//'`"
+    docker cp $folderName/. $(_mainContainer):$2
+    rm -rf $folderName
+}
+
+function staging-pull() {
+    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry backup gantry-staging-pull && gantry grab /var/www/html/wp-content/uploads gantry-staging-pull-uploads" && \
+    scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
+    gantry restore gantry-staging-pull.sql.gz && \
+    gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads
+}
 
 
 function _mainContainerId {
