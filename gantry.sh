@@ -214,7 +214,13 @@ function npm() {
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
-    docker run -it --rm -v `pwd`:/app -v $BOWER_MAP rainsystems/bower:1.7.2  --config.analytics=false --allow-root $@
+    [ -d "bower_components" ] || mkdir bower_components
+    docker run --rm \
+        -e BOWER_UID="`id -u`" \
+        -e BOWER_GID="`id -g`" \
+        -v `pwd`:/app \
+        rainsystems/bower:1.7.2  \
+        --config.analytics=false --allow-root $@
 }
 # run gulp commands
 function gulp() {
