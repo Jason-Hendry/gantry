@@ -33,6 +33,7 @@ function start() {
     if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_db_1\b")" ]; then
         docker-compose up -d
         _save
+        web
         exit 0
     fi
 
@@ -85,6 +86,7 @@ function start() {
     docker rm -f -v ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
 
     _save
+    web
 }
 # Stop Docker Containers
 function stop() {
@@ -158,7 +160,15 @@ function backup() {
 # run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
 function cap() {
     [ ! -d "config" ] && mkdir config && chmod 1755 config
-    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) -v $HOME/.ssh:/ssh -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v `pwd`:/app -v $SSH_DIR:/ssh rainsystems/cap:3.4.0 $@
+    docker run -it --rm \
+        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+        -e GANTRY_UID="`id -u`" \
+        -e GANTRY_GID="`id -g`" \
+        -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+        -v $HOME/.ssh:/ssh \
+        -v `pwd`:/app \
+        -v $SSH_DIR:/ssh \
+        rainsystems/cap:3.4.0 $@
 }
 # run ansible command
 function ansible() {
@@ -189,36 +199,61 @@ function playbook() {
 }
 # run composer command
 function composer() {
-    docker run -it --rm -v `pwd`:/app -v $SSH_DIR:/ssh composer/composer $@
-}
-# run cap (capistrano) command inside docker container (neolao/capistrano:2.15.5) (extra args passed to cap command)
-function deploy() {
-    docker run -it --rm -v `pwd`:/source -v $SSH_DIR:/ssh neolao/capistrano:3.4.0 bash -i -v -c "cp -r /ssh /root/.ssh; chmod 0700 -R /root/.ssh; chown -R root.root /root/.ssh; cap $1 deploy"
+    docker run -it --rm \
+        -e GANTRY_UID="`id -u`" \
+        -e GANTRY_GID="`id -g`" \
+        -v `pwd`:/app \
+        -v $SSH_DIR:/ssh \
+        composer/composer $@
 }
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
 function sass() {
-    docker run -it --rm -v `pwd`:/source rainsystems/sass:3.4.21 $@
+    docker run -it --rm \
+        -e GANTRY_UID="`id -u`" \
+        -e GANTRY_GID="`id -g`" \
+        -v `pwd`:/source \
+        rainsystems/sass:3.4.21 $@
 }
 # run behat command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function behat() {
-    docker run -it --rm -v $PWD:/app -e TRAVIS_BUILD_NUMBER=$CI_BUILD_NUMBER -e SAUCE_USERNAME=$SAUCE_USERNAME -e SAUCE_ACCESS_KEY=$SAUCE_ACCESS_KEY rainsystems/behat:3.1.0 $@
+    docker run -it --rm \
+        -v $PWD:/app \
+        -e GANTRY_UID="`id -u`" \
+        -e GANTRY_GID="`id -g`" \
+        -e TRAVIS_BUILD_NUMBER=$CI_BUILD_NUMBER \
+        -e SAUCE_USERNAME=$SAUCE_USERNAME \
+        -e SAUCE_ACCESS_KEY=$SAUCE_ACCESS_KEY \
+        rainsystems/behat:3.1.0 $@
 }
 # wraith
 function wraith() {
-    docker run -it --rm -v $PWD:/app wraith $@
+    docker run -it --rm \
+        -e GANTRY_UID="`id -u`" \
+        -e GANTRY_GID="`id -g`" \
+        -v $PWD:/app \
+        wraith $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function node() {
-    docker run -it --rm -w="/app" --entrypoint node -v `pwd`:/app node:5-slim $@
+    docker run -it --rm \
+        -w="/app" \
+        --entrypoint node \
+        -v `pwd`:/app node:5-slim $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function npm() {
-    docker run -it --rm -w="/app" --entrypoint npm -v `pwd`:/app node:5-slim $@
+    docker run -it --rm \
+        -w="/app" \
+        --entrypoint npm \
+        -v `pwd`:/app \
+        node:5-slim $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
     [ -d "bower_components" ] || mkdir bower_components
     docker run --rm \
+        -e GANTRY_UID="`id -u`" \
+        -e GANTRY_GID="`id -g`" \
         -e BOWER_UID="`id -u`" \
         -e BOWER_GID="`id -g`" \
         -v `pwd`:/app \
@@ -227,10 +262,15 @@ function bower() {
 }
 # run gulp commands
 function gulp() {
-    docker run -it --rm -v `pwd`:/app rainsystems/gulp $@
+    docker run -it --rm \
+        -e GANTRY_UID="`id -u`" \
+        -e GANTRY_GID="`id -g`" \
+        -v `pwd`:/app \
+        rainsystems/gulp $@
 }
 
 function pull () {
+    if [ -n "$1" ]; then
     case $1 in
         'behat')
             docker pull rainsystems/behat:3.1.0
@@ -248,6 +288,14 @@ function pull () {
             docker pull rainsystems/cap:3.4.0
         ;;
     esac
+    else
+        echo "Pulling all gantry images"
+        docker pull rainsystems/behat:3.1.0
+        docker pull rainsystems/gulp
+        docker pull rainsystems/bower:1.7.2
+        docker pull rainsystems/sass:3.4.21
+        docker pull rainsystems/cap:3.4.0
+    fi
 }
 
 # Print version
@@ -274,6 +322,7 @@ function symfony() {
 # run symfony console (./app/console ...)
 function symfony-schema() {
     _exec ./app/console doctrine:schema:update --dump-sql
+
     if [ "$1" == "-f" ]; then
         _exec ./app/console doctrine:schema:update --force
     else
@@ -283,6 +332,28 @@ function symfony-schema() {
             _exec ./app/console doctrine:schema:update --force
         fi
     fi
+}
+# run symfony schema update
+function sf-schema() {
+    _exec console doctrine:schema:update --dump-sql
+
+    if [ "$1" == "-f" ]; then
+        _exec console doctrine:schema:update --force
+    else
+        read -r -p "Make this changes now? [y/N] " response
+        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+        then
+            _exec console doctrine:schema:update --force
+        fi
+    fi
+}
+# run symfony schema update
+function sf-entity() {
+    _exec console doctrine:generate:entity
+}
+# run symfony schema update
+function sf-crud() {
+    _exec console doctrine:generate:crud
 }
 
 
@@ -312,15 +383,20 @@ function put() {
     rm -rf $folderName
 }
 
-function staging-pull() {
-    echo "Backup Files and DB"
-    ssh ${STAGING_HOST} "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry backup gantry-staging-pull && gantry grab /var/www/html/wp-content/uploads gantry-staging-pull-uploads" && \
-    echo "Pull Files and DB" && \
-    scp ${STAGING_HOST}:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
-    echo "Replace local DB" && \
+# Pull all the wordpress file and db changes from staging  (Warning Replaces all local changes)
+function wp-pull() {
+    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry backup gantry-staging-pull && gantry grab /var/www/html/wp-content/uploads gantry-staging-pull-uploads" && \
+    scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
     gantry restore gantry-staging-pull.sql.gz && \
-    echo "Replace local Files" && \
     gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads
+}
+# Push all the local wordpress file and db changes to staging (Warning Replaces all staging changes)
+function wp-push() {
+    backup gantry-staging-push &&\
+    gantry grab /var/www/html/wp-content/uploads gantry-staging-push-uploads &&\
+    scp gantry-staging-push* $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/ && \
+    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry restore gantry-staging-pull.sql.gz" && \
+    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads"
 }
 
 
@@ -442,10 +518,12 @@ EOF
 }
 # End of init()
 
-
+# Setup docker / gantry components for symfony 2.x Project
 function init-symfony() {
     local PROJECT_NAME="`basename .`"
-    local RAND_PORT="`cat /dev/urandom | tr -dc '0-9' | fold -w 4 | head -n 1`"
+
+    docker ps --format "{{.Ports}}-{{.Names}}" | sed 's/0.0.0.0://' | grep '\->' | cut -d\- -f1,3 | sed 's/-/: /'
+    read -p "Enter an unused even port between 1000 and 9999: " portNum
 
 cat << 'EOF' > docker-compose.yml
 #
@@ -503,7 +581,7 @@ cat << EOF > gantry.sh
 export COMPOSE_PROJECT_NAME="${PROJECT_NAME}"
 
 # Use unique ports for each project that will run simultansiously, mainly for dev env.
-export DOCKER_HTTP_PORT="${RAND_PORT}" # These should site behind a nginx reverse proxy/lb
+export DOCKER_HTTP_PORT="${portNum}" # These should site behind a nginx reverse proxy/lb
 
 # Set the default App Env
 [ -z \$APP_ENV ] && export APP_ENV="prod"
@@ -536,9 +614,8 @@ EOF
 function init-wordpress() {
 
     local PROJECT_NAME="`basename .`"
-    local RAND_PORT="`cat /dev/urandom | tr -dc '0-9' | fold -w 4 | head -n 1`"
-#    $ [ $((rand_port%2)) -eq 0 ] && echo "even"
-    exit;
+    docker ps --format "{{.Ports}}-{{.Names}}" | sed 's/0.0.0.0://' | grep '\->' | cut -d\- -f1,3 | sed 's/-/: /'
+    read -p "Enter an unused even port between 1000 and 9999: " portNum
 
 cat << EOF > docker-compose.yml
 #
@@ -580,7 +657,7 @@ cat << EOF > gantry.sh
 export COMPOSE_PROJECT_NAME="${PROJECT_NAME}"
 
 # Use unique ports for each project that will run simultansiously, mainly for dev env.
-export DOCKER_HTTP_PORT="1090" # These should site behind a nginx reverse proxy/lb
+export DOCKER_HTTP_PORT="${portNum}" # These should site behind a nginx reverse proxy/lb
 
 # Set the default App Env
 [ -z \$APP_ENV ] && export APP_ENV="prod"
