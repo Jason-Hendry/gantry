@@ -370,7 +370,7 @@ function create-user() {
 
 # Grab and tare gzip a folder from the main container
 function grab() {
-    echo docker cp $(_mainContainer):$1 $2
+    mkdir $2
     docker cp $(_mainContainer):$1 $2
     tar zcvpf $2.tar.gz $2
     rm -rf $2
@@ -385,7 +385,18 @@ function put() {
 
 # Pull all the wordpress file and db changes from staging  (Warning Replaces all local changes)
 function wp-pull() {
-    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry backup gantry-staging-pull && gantry grab /var/www/html/wp-content/uploads gantry-staging-pull-uploads" && \
+    cat << EOF > /tmp/wp-pull.sh
+#!/bin/bash
+
+cd /app/${COMPOSE_PROJECT_NAME}/current && \
+    gantry backup gantry-staging-pull && \
+    gantry grab /var/www/html/wp-content/uploads gantry-staging-pull-uploads
+# Self cleanup
+rm /tmp/wp-pull.sh
+EOF
+    scp /tmp/wp-pull.sh $STAGING_HOST:/tmp/wp-pull.sh
+    rm /tmp/wp-pull.sh
+    ssh $STAGING_HOST 'bash /tmp/wp-pull.sh' && \
     scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
     gantry restore gantry-staging-pull.sql.gz && \
     gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads
@@ -395,8 +406,20 @@ function wp-push() {
     backup gantry-staging-push &&\
     gantry grab /var/www/html/wp-content/uploads gantry-staging-push-uploads &&\
     scp gantry-staging-push* $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/ && \
-    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry restore gantry-staging-pull.sql.gz" && \
-    ssh $STAGING_HOST bash -C "cd /app/${COMPOSE_PROJECT_NAME}/current && gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads"
+
+    cat << EOF > /tmp/wp-push.sh
+#!/bin/bash
+
+cd /app/${COMPOSE_PROJECT_NAME}/current && \
+    gantry restore gantry-staging-pull.sql.gz" && \
+    gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads
+
+# Self cleanup
+rm /tmp/wp-push.sh
+EOF
+    scp /tmp/wp-push.sh $STAGING_HOST:/tmp/wp-push.sh
+    rm /tmp/wp-push.sh
+    ssh $STAGING_HOST 'bash /tmp/wp-push.sh'
 }
 
 
