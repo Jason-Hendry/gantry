@@ -388,24 +388,36 @@ function wp-pull() {
     cat << EOF > /tmp/wp-pull.sh
 #!/bin/bash
 
+if [ "\$1" = "cleanup" ]; then
+    cd /app/${COMPOSE_PROJECT_NAME}/current
+    rm gantry-staging-pull*
+    rm /tmp/wp-pull.sh
+    exit;
+fi;
+
+
 cd /app/${COMPOSE_PROJECT_NAME}/current && \
     gantry backup gantry-staging-pull && \
     gantry grab /var/www/html/wp-content/uploads gantry-staging-pull-uploads
 # Self cleanup
 rm /tmp/wp-pull.sh
 EOF
-    scp /tmp/wp-pull.sh $STAGING_HOST:/tmp/wp-pull.sh
+    scp /tmp/wp-pull.sh $STAGING_HOST:/tmp/wp-pull.sh && \
+        ssh $STAGING_HOST 'bash /tmp/wp-pull.sh' && \
+        scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
+        gantry restore gantry-staging-pull.sql.gz && \
+        gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads && \
+        ssh $STAGING_HOST 'bash /tmp/wp-pull.sh cleanup'
     rm /tmp/wp-pull.sh
-    ssh $STAGING_HOST 'bash /tmp/wp-pull.sh' && \
-    scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
-    gantry restore gantry-staging-pull.sql.gz && \
-    gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads
+    wp-host
 }
+
 # Push all the local wordpress file and db changes to staging (Warning Replaces all staging changes)
 function wp-push() {
-    backup gantry-staging-push &&\
-    gantry grab /var/www/html/wp-content/uploads gantry-staging-push-uploads &&\
-    scp gantry-staging-push* $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/ && \
+    wp-host $STAGING_DOMAIN && \
+        backup gantry-staging-push &&\
+        gantry grab /var/www/html/wp-content/uploads gantry-staging-push-uploads &&\
+        scp gantry-staging-push* $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/
 
     cat << EOF > /tmp/wp-push.sh
 #!/bin/bash
@@ -414,14 +426,34 @@ cd /app/${COMPOSE_PROJECT_NAME}/current && \
     gantry restore gantry-staging-pull.sql.gz" && \
     gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads
 
-# Self cleanup
+cd /app/${COMPOSE_PROJECT_NAME}/current
+rm gantry-staging-push*
 rm /tmp/wp-push.sh
+
 EOF
-    scp /tmp/wp-push.sh $STAGING_HOST:/tmp/wp-push.sh
-    rm /tmp/wp-push.sh
-    ssh $STAGING_HOST 'bash /tmp/wp-push.sh'
+    scp /tmp/wp-push.sh $STAGING_HOST:/tmp/wp-push.sh && \
+        ssh $STAGING_HOST 'bash /tmp/wp-push.sh'
+    rm /tmp/wp-push.sh gantry-staging-push*
+
+    wp-host
+
 }
 
+# Change the hostname for wordpress
+function wp-host() {
+
+    [ -z "$1" ] && local url="$(_dockerHost):${DOCKER_HTTP_PORT}"
+    [ -n "$1" ] && local url="$1"
+
+    # TODO: postgres restore
+    cat << EOF > data/backup/backup.sql
+UPDATE wp_options SET option_value="http://$url/" WHERE option_name="siteurl";
+UPDATE wp_options SET option_value="http://$url/" WHERE option_name="home";
+EOF
+
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
+    echo "Set host and site url to http://$url/"
+}
 
 function _mainContainerId {
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
