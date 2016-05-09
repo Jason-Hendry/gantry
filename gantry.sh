@@ -199,7 +199,7 @@ function playbook() {
 }
 # run composer command
 function composer() {
-    docker run -it --rm \
+    docker run --rm \
         -e GANTRY_UID="`id -u`" \
         -e GANTRY_GID="`id -g`" \
         -v `pwd`:/app \
