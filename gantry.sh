@@ -62,17 +62,7 @@ function start() {
         docker rm -v ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
     fi
 
-    DOCKER_RUN_CMD="$(echo docker run -d -p ${DOCKER_HTTP_PORT}:80 \
-      --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
-      $(_mainVolumes) \
-      --restart always \
-      $(_mainVolumesFrom) \
-      $(_mainLinks) \
-      $(_mainEnv) \
-      ${COMPOSE_PROJECT_NAME}_main)"
-
-    # Start
-    eval "$DOCKER_RUN_CMD" || exit 1
+    docker-compose scale main=2
 
     # Wait for port to open
     echo "Waiting for http://$(_dockerHost):$DOCKER_HTTP_PORT";
@@ -134,6 +124,32 @@ function psql() {
 function mysql() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "MYSQL_PWD=\${MYSQL_ROOT_PASSWORD} mysql -uroot \${MYSQL_DATABASE}"
 }
+
+
+# Restore DB from file (filename.sql.gz)
+function restore-prod() {
+    # TODO: postgres restore
+    gunzip -c $1 > data/backup/backup.sql
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "echo \"drop database IF EXISTS \$MYSQL_DATABASE;create database \$MYSQL_DATABASE\" | mysql -h $DB_PROD -p -u$DB_PROD_USER"
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | mysql -h $DB_PROD -u$DB_PROD_USER -p \$MYSQL_DATABASE"
+    echo "DB Restore using $1"
+}
+# Create DB backup - gzipped sql (optional filename - no extension)
+function backup-prod() {
+    # TODO: postgres backup
+    [ -z $1 ] && local BU_FILE="backup-$(date +%Y%m%d%H%M)" || local BU_FILE="$1"
+    docker exec ${COMPOSE_PROJECT_NAME}_db_1 bash -c "mysqldump -h $DB_PROD -u$DB_PROD_USER \$MYSQL_DATABASE > /backup/backup.sql"
+    cat data/backup/backup.sql > ${BU_FILE}.sql
+    gzip ${BU_FILE}.sql
+    echo "DB Backup $BU_FILE"
+}
+
+# Open mysql client to production (RDS)
+function mysql-prod() {
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "mysql -h $DB_PROD -p -u$DB_PROD_USER"
+}
+
+
 # Open terminal console on db docker container
 function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
@@ -197,6 +213,35 @@ function playbook() {
                         -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
                         rainsystems/ansible -c ssh "$@"
 }
+function ansible-console() {
+    [ -z "$EDITOR" ] && export EDITOR='vim'
+    [ -f "aws.sh" ] && . aws.sh
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+                        -v $HOME/.ssh:/ssh \
+                        -v `pwd`:/app \
+                        -v $SSH_DIR:/ssh \
+                        -e DEBUG="TRUE" \
+                        -e EC2_INV="TRUE" \
+                        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+                        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                        -e EDITOR=$EDITOR \
+                        rainsystems/ansible "$@"
+}
+function ansible-vault() {
+    [ -z "$EDITOR" ] && export EDITOR='vim'
+    [ -f "aws.sh" ] && . aws.sh
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+                        -v $HOME/.ssh:/ssh \
+                        -v `pwd`:/app \
+                        -v $SSH_DIR:/ssh \
+                        -e VAULT="TRUE" \
+                        -e EC2_INV="TRUE" \
+                        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+                        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                        rainsystems/ansible "$@"
+}
 # run composer command
 function composer() {
     docker run --rm \
@@ -204,7 +249,7 @@ function composer() {
         -e GANTRY_GID="`id -g`" \
         -v `pwd`:/app \
         -v $SSH_DIR:/ssh \
-        composer/composer $@
+        rainsystems/composer $@
 }
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
 function sass() {
@@ -313,6 +358,9 @@ function test() {
     _exec phpunit -c $PHPUNIT_CONF_PATH $@
 }
 
+
+
+
 ##### Symfony Commands #######
 
 # run symfony console (./app/console ...)
@@ -364,8 +412,8 @@ function logs() {
 
 # create fosUserBundle user (username email password role)
 function create-user() {
-    _exec ./app/console fos:user:create $1 $2 $3
-    _exec ./app/console fos:user:promote $1 $4
+    _exec console fos:user:create $1 $2 $3
+    _exec console fos:user:promote $1 $4
 }
 
 # Grab and tare gzip a folder from the main container
@@ -406,7 +454,7 @@ EOF
         ssh $STAGING_HOST 'bash /tmp/wp-pull.sh' && \
         scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
         gantry restore gantry-staging-pull.sql.gz && \
-        gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads && \
+        gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads/ && \
         ssh $STAGING_HOST 'bash /tmp/wp-pull.sh cleanup'
     rm /tmp/wp-pull.sh
     wp-host
@@ -454,6 +502,23 @@ EOF
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
     echo "Set host and site url to http://$url/"
 }
+
+# Change the hostname for wordpress
+function wp-host-prod() {
+
+    [ -z "$1" ] && local url="$(_dockerHost):${DOCKER_HTTP_PORT}"
+    [ -n "$1" ] && local url="$1"
+
+    # TODO: postgres restore
+    cat << EOF > data/backup/backup.sql
+UPDATE wp_options SET option_value="http://$url/" WHERE option_name="siteurl";
+UPDATE wp_options SET option_value="http://$url/" WHERE option_name="home";
+EOF
+
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | mysql -h$DB_PROD -u$DB_PROD_USER -p $DB_PROD_NAME"
+    echo "Set host and site url to http://$url/"
+}
+
 
 function _mainContainerId {
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
@@ -730,8 +795,13 @@ EOF
 }
 
 function _exec() {
-    docker exec -it $(_mainContainer) $@
+    docker exec $_GANTRY_EXEC_OPTION -it $(_mainContainer) $@
 }
+# Reset permissions to my user
+function reset-owner() {
+    _exec chown -R `id -u`.`id -g` $1
+}
+
 # Convert docker-compose volumes into docker run volumes
 function _mainVolumes() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | sed 's/^-/-v /' | tr "\n" ' '
@@ -740,7 +810,8 @@ function _mainVolumesFrom() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes_from:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--volumes-from \"\$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/$/_1\"/' | tr "\n" ' '
 }
 function _mainLinks() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'links:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--link \"\$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/:\|$/_1\0/' | sed 's/$/"/' | tr "\n" ' '
+  _parse_yaml docker-compose.yml "dc_"
+  echo $dc_main_links
 }
 function _mainEnv() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'environment:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -2 | tr -d ' ' | tr ':' '=' | sed 's/^/-e /' | tr "\n" ' '
@@ -763,6 +834,23 @@ if [ -z $1 ]; then
     echo ""
     exit;
 fi
+
+
+function _parse_yaml() {
+   local prefix=$2
+   local s='[[:space:]]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034')
+   sed -ne "s|^\($s\)\($w\)$s:$s\"\(.*\)\"$s\$|\1$fs\2$fs\3|p" \
+        -e "s|^\($s\)\($w\)$s:$s\(.*\)$s\$|\1$fs\2$fs\3|p"  $1 |
+   awk -F$fs '{
+      indent = length($1)/2;
+      vname[indent] = $2;
+      for (i in vname) {if (i > indent) {delete vname[i]}}
+      if (length($3) > 0) {
+         vn=""; for (i=0; i<indent; i++) {vn=(vn)(vname[i])("_")}
+         printf("%s%s%s=\"%s\"\n", "'$prefix'",vn, $2, $3);
+      }
+   }'
+}
 
 # Run Command
 $1 ${@:2}
