@@ -16,6 +16,10 @@ export GANTRY_VERSION="1.3"
 [ -z $BOWER_MAP ] && export BOWER_MAP="$BOWER_VOL:/source/bower_components"
 
 [ -d "${HOME}/.gantry" ] || mkdir -p "${HOME}/.gantry"
+
+[ -z $GANTRY_PMA_PORT ] && export GANTRY_PMA_PORT=9990
+[ -z $GANTRY_PMA_PORT_PROD ] && export GANTRY_PMA_PORT_PROD=9991
+
 export GANTRY_DATA_FILE="$HOME/.gantry/${COMPOSE_PROJECT_NAME}_${GANTRY_ENV}"
 
 ## Saves you current state as sourcable variables in bash script
@@ -76,7 +80,6 @@ function start() {
     docker rm -f -v ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
 
     _save
-    web
 }
 # Stop Docker Containers
 function stop() {
@@ -126,6 +129,42 @@ function mysql() {
 }
 
 
+# Open PHPMyAdmin
+function pma() {
+
+    echo "Open PHPMyAdmin for ${COMPOSE_PROJECT_NAME}_db_1";
+
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(_dockerHost):${GANTRY_PMA_PORT}/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):${GANTRY_PMA_PORT}// 2> /dev/null > /dev/null
+
+
+
+    docker run --rm \
+        --link "${COMPOSE_PROJECT_NAME}_db_1:db" \
+        -e "PMA_HOST=db" \
+        -e "PMA_PORT=3306" \
+        -e "PMA_USER=root" \
+        -e "PMA_PASSWORD=${DB_ROOT_PW}" \
+        -p $GANTRY_PMA_PORT:80 \
+        phpmyadmin/phpmyadmin
+
+}
+# Open PHPMyAdmin on prod
+function pma-prod() {
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(_dockerHost):${GANTRY_PMA_PORT_PROD}/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):${GANTRY_PMA_PORT_PROD}// 2> /dev/null > /dev/null
+
+    docker run --rm \
+        -e "PMA_HOST=${DB_PROD}" \
+        -e "PMA_PORT=3306" \
+        -e "PMA_USER=${DB_PROD_USER}" \
+        -e "PMA_PASSWORD=${DB_PROD_PASS}" \
+        -p $GANTRY_PMA_PORT_PROD:80 \
+        phpmyadmin/phpmyadmin
+}
+
 # Restore DB from file (filename.sql.gz)
 function restore-prod() {
     # TODO: postgres restore
@@ -138,7 +177,7 @@ function restore-prod() {
 function backup-prod() {
     # TODO: postgres backup
     [ -z $1 ] && local BU_FILE="backup-$(date +%Y%m%d%H%M)" || local BU_FILE="$1"
-    docker exec ${COMPOSE_PROJECT_NAME}_db_1 bash -c "mysqldump -h $DB_PROD -u$DB_PROD_USER \$MYSQL_DATABASE > /backup/backup.sql"
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "mysqldump -h $DB_PROD -p -u$DB_PROD_USER \$MYSQL_DATABASE > /backup/backup.sql"
     cat data/backup/backup.sql > ${BU_FILE}.sql
     gzip ${BU_FILE}.sql
     echo "DB Backup $BU_FILE"
@@ -163,6 +202,16 @@ function restore() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
     echo "DB Restore using $1"
 }
+
+# run sql from file in mysql (filename.sql)
+function sql() {
+    # TODO: postgres restore
+    cat $1 > data/backup/backup.sql
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
+    echo "DB Restore using $1"
+}
+
+
 # Create DB backup - gzipped sql (optional filename - no extension)
 function backup() {
     # TODO: postgres backup
@@ -216,12 +265,13 @@ function playbook() {
 function ansible-console() {
     [ -z "$EDITOR" ] && export EDITOR='vim'
     [ -f "aws.sh" ] && . aws.sh
+    [ -f "config/ec2.py" ] && export EC2='-e EC2_INV="TRUE"'
     docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
                         -v $HOME/.ssh:/ssh \
                         -v `pwd`:/app \
                         -v $SSH_DIR:/ssh \
                         -e DEBUG="TRUE" \
-                        -e EC2_INV="TRUE" \
+                        $EC2 \
                         -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
                         -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
                         -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
