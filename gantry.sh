@@ -131,14 +131,11 @@ function mysql() {
 
 # Open PHPMyAdmin
 function pma() {
-
     echo "Open PHPMyAdmin for ${COMPOSE_PROJECT_NAME}_db_1";
 
     # Try Linux xdg-open otherwise OSX open
     xdg-open http://$(_dockerHost):${GANTRY_PMA_PORT}/ 2> /dev/null > /dev/null || \
     open http://$(_dockerHost):${GANTRY_PMA_PORT}// 2> /dev/null > /dev/null
-
-
 
     docker run --rm \
         --link "${COMPOSE_PROJECT_NAME}_db_1:db" \
@@ -337,10 +334,14 @@ function node() {
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function npm() {
-    docker run -it --rm \
+    mkdir -p .npm
+    mkdir -p .npm_config
+    docker run -it --rm -u `id -u`:`id -g` \
         -w="/app" \
         --entrypoint npm \
         -v `pwd`:/app \
+        -v `pwd`/.npm:/.npm \
+        -v `pwd`/.npm_config:/.config \
         node:5-slim $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
@@ -479,6 +480,22 @@ function put() {
     local folderName="`echo $1 | sed 's/\.tar\.gz$//'`"
     docker cp $folderName/. $(_mainContainer):$2
     rm -rf $folderName
+}
+
+
+function cordova() {
+    mkdir -p .cordova
+    mkdir -p .cordova_config
+    mkdir -p .cordova_npm
+    docker run \
+        --rm -it \
+        -u `id -u`:`id -g` \
+        -v $PWD:/app \
+        -v $PWD/.cordova:/.cordova \
+        -v $PWD/.cordova_config:/.config \
+        -v $PWD/.cordova_npm:/.npm \
+        -w /app \
+        beevelop/cordova:latest cordova $@
 }
 
 # Pull all the wordpress file and db changes from staging  (Warning Replaces all local changes)
