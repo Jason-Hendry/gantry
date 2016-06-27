@@ -37,7 +37,6 @@ function start() {
     if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_db_1\b")" ]; then
         docker-compose up -d
         _save
-        web
         exit 0
     fi
 
@@ -334,33 +333,30 @@ function node() {
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function npm() {
-    mkdir -p .npm
-    mkdir -p .npm_config
     docker run -it --rm -u `id -u`:`id -g` \
         -w="/app" \
         --entrypoint npm \
         -v `pwd`:/app \
-        -v `pwd`/.npm:/.npm \
-        -v `pwd`/.npm_config:/.config \
+        -v $HOME:$HOME \
+        -e HOME="$HOME" \
         node:5-slim $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
     [ -d "bower_components" ] || mkdir bower_components
     docker run --rm \
-        -e GANTRY_UID="`id -u`" \
-        -e GANTRY_GID="`id -g`" \
-        -e BOWER_UID="`id -u`" \
-        -e BOWER_GID="`id -g`" \
+        -u `id -u`:`id -g` \
         -v `pwd`:/app \
+        -v $HOME:$HOME \
+        -e HOME="$HOME" \
         rainsystems/bower:1.7.2  \
-        --config.analytics=false --allow-root $@
+        --config.analytics=false $@
 }
 # run gulp commands
 function gulp() {
     docker run -it --rm \
-        -e GANTRY_UID="`id -u`" \
-        -e GANTRY_GID="`id -g`" \
+        -v $HOME:$HOME \
+        -e HOME="$HOME" \
         -v `pwd`:/app \
         rainsystems/gulp $@
 }
@@ -482,20 +478,23 @@ function put() {
     rm -rf $folderName
 }
 
-
+# Cordova for android build and dev operations
 function cordova() {
     mkdir -p .cordova
     mkdir -p .cordova_config
     mkdir -p .cordova_npm
+    mkdir -p .cordova_tmp_git
     docker run \
         --rm -it \
-        -u `id -u`:`id -g` \
+        -e GIT_NAME="`git config user.name`" \
+        -e GIT_EMAIL="`git config user.email`" \
         -v $PWD:/app \
         -v $PWD/.cordova:/.cordova \
         -v $PWD/.cordova_config:/.config \
         -v $PWD/.cordova_npm:/.npm \
+        -v $PWD/.cordova_tmp_git:/tmp/git \
         -w /app \
-        beevelop/cordova:latest cordova $@
+        rainsystems/cordova:latest $@
 }
 
 # Pull all the wordpress file and db changes from staging  (Warning Replaces all local changes)
