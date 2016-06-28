@@ -35,6 +35,15 @@ function testNpmInit() {
     rm -rf package.json
     assert "[ ! -f \"package.json\" ]" "Clean up failed"
 }
+
+function testGulp() {
+    gulp >> test.log
+    assert "[ -f \"build/all.min.js\" ]" "build/all.min.js file expected"
+    rm -rf build
+    assert "[ ! -d \"build\" ]" "Clean up failed"
+}
+
+
 # Needs interactive prompts
 #function testBowerInit() {
 #    bower init
