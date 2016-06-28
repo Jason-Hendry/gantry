@@ -14,10 +14,11 @@ export GANTRY_VERSION="1.4"
 [ -z $BOWER_VOL ] && export BOWER_VOL="`pwd`/bower_components"
 [ -z $BOWER_MAP ] && export BOWER_MAP="$BOWER_VOL:/source/bower_components"
 
-[ -z $GANTRY_PMA_PORT ] && export GANTRY_PMA_PORT=9900;
-[ -z $GANTRY_PMA_PORT_PROD ] && export GANTRY_PMA_PORT_PROD=9901;
-
 [ -d "${HOME}/.gantry" ] || mkdir -p "${HOME}/.gantry"
+
+[ -z $GANTRY_PMA_PORT ] && export GANTRY_PMA_PORT=9990
+[ -z $GANTRY_PMA_PORT_PROD ] && export GANTRY_PMA_PORT_PROD=9991
+
 export GANTRY_DATA_FILE="$HOME/.gantry/${COMPOSE_PROJECT_NAME}_${GANTRY_ENV}"
 
 ## Saves you current state as sourcable variables in bash script
@@ -35,7 +36,6 @@ function start() {
     if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_main_[0-9]+\b")" ]; then
         docker-compose up -d
         _save
-        web
         exit 0
     fi
 
@@ -78,7 +78,6 @@ function start() {
     docker rm -f -v ${COMPOSE_PROJECT_NAME}_main_${STOP_DOCKER_HTTP_PORT}
 
     _save
-    web
 }
 # Stop Docker Containers
 function stop() {
@@ -128,6 +127,42 @@ function mysql() {
 }
 
 
+# Open PHPMyAdmin
+function pma() {
+    echo "Open PHPMyAdmin for ${COMPOSE_PROJECT_NAME}_db_1";
+
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(_dockerHost):${GANTRY_PMA_PORT}/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):${GANTRY_PMA_PORT}// 2> /dev/null > /dev/null
+
+    docker run --rm \
+        --link "${COMPOSE_PROJECT_NAME}_db_1:db" \
+        -e "PMA_HOST=db" \
+        -e "PMA_PORT=3306" \
+        -e "PMA_USER=root" \
+        -e "PMA_PASSWORD=${DB_ROOT_PW}" \
+        -p $GANTRY_PMA_PORT:80 \
+        phpmyadmin/phpmyadmin
+
+}
+# Open PHPMyAdmin on prod
+function pma-prod() {
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(_dockerHost):${GANTRY_PMA_PORT_PROD}/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):${GANTRY_PMA_PORT_PROD}// 2> /dev/null > /dev/null
+
+    docker run --rm \
+        -e "PMA_HOST=${DB_PROD}" \
+        -e "PMA_PORT=3306" \
+        -e "PMA_USER=${DB_PROD_USER}" \
+        -e "PMA_PASSWORD=${DB_PROD_PASS}" \
+        -p $GANTRY_PMA_PORT_PROD:80 \
+        phpmyadmin/phpmyadmin
+}
+
+
+
+
 # Restore DB from file (filename.sql.gz)
 function restore-prod() {
 
@@ -163,43 +198,6 @@ function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
 }
 
-
-function phpmyadmin() {
-    # Try Linux xdg-open otherwise OSX open
-    xdg-open http://$(_dockerHost):$GANTRY_PMA_PORT/ 2> /dev/null > /dev/null || \
-    open http://$(_dockerHost):$GANTRY_PMA_PORT// 2> /dev/null > /dev/null
-
-
-    docker run --rm \
-      -l ${COMPOSE_PROJECT_NAME}_db_1:db \
-      -p "$GANTRY_PMA_PORT:80" \
-      -e PMA_HOST:"db" \
-      -e PMA_PORT:"3306" \
-      -e PMA_USER:"root" \
-      -e PMA_PASSWORD:"$DB_PROD_PW" \
-      phpmyadmin/phpmyadmin
-}
-function phpmyadmin-prod() {
-
-    echo "Connecting to: ${DB_PROD_USER}@${DB_PROD}:3306";
-
-    # Try Linux xdg-open otherwise OSX open
-    xdg-open http://$(_dockerHost):$GANTRY_PMA_PORT_PROD/ 2> /dev/null > /dev/null || \
-    open http://$(_dockerHost):$GANTRY_PMA_PORT_PROD// 2> /dev/null > /dev/null
-
-    [ -z "DB_PROD_PW" ] && read -s -p "Production MySQL Password: " DB_PROD_PW
-
-    set -e
-
-    docker run --rm \
-      -p "$GANTRY_PMA_PORT_PROD:80" \
-      -e "PMA_HOST=${DB_PROD}" \
-      -e "PMA_PORT=3306" \
-      -e "PMA_USER=${DB_PROD_USER}" \
-      -e "PMA_PASSWORD=${DB_PROD_PW}" \
-      phpmyadmin/phpmyadmin
-}
-
 # Restore DB from file (filename.sql.gz)
 function restore() {
     # TODO: postgres restore
@@ -208,6 +206,15 @@ function restore() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
     echo "DB Restore using $1"
 }
+
+# run sql from file in mysql (filename.sql)
+function sql() {
+    # TODO: postgres restore
+    cat $1 > data/backup/backup.sql
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql -uroot \$MYSQL_DATABASE"
+    echo "DB Restore using $1"
+}
+
 # Create DB backup - gzipped sql (optional filename - no extension)
 function backup() {
     # TODO: postgres backup
@@ -261,12 +268,13 @@ function playbook() {
 function ansible-console() {
     [ -z "$EDITOR" ] && export EDITOR='vim'
     [ -f "aws.sh" ] && . aws.sh
+    [ -f "config/ec2.py" ] && export EC2='-e EC2_INV="TRUE"'
     docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
                         -v $HOME/.ssh:/ssh \
                         -v `pwd`:/app \
                         -v $SSH_DIR:/ssh \
                         -e DEBUG="TRUE" \
-                        -e EC2_INV="TRUE" \
+                        $EC2 \
                         -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
                         -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
                         -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
@@ -333,28 +341,31 @@ function node() {
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function npm() {
     docker run -it --rm \
+        -u `id -u`:`id -g` \
         -w="/app" \
         --entrypoint npm \
         -v `pwd`:/app \
+        -v $HOME:$HOME \
+        -e HOME="$HOME" \
         node:5-slim $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
     [ -d "bower_components" ] || mkdir -p bower_components
     docker run --rm \
-        -e GANTRY_UID="`id -u`" \
-        -e GANTRY_GID="`id -g`" \
-        -e BOWER_UID="`id -u`" \
-        -e BOWER_GID="`id -g`" \
+        -u `id -u`:`id -g` \
         -v `pwd`:/app \
+        -v $HOME:$HOME \
+        -e HOME="$HOME" \
         rainsystems/bower:1.7.2  \
-        --config.analytics=false --allow-root $@
+        --config.analytics=false $@
 }
 # run gulp commands
 function gulp() {
     docker run -it --rm \
-        -e GANTRY_UID="`id -u`" \
-        -e GANTRY_GID="`id -g`" \
+        -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME="$HOME" \
         -v `pwd`:/app \
         rainsystems/gulp $@
 }
@@ -471,6 +482,25 @@ function put() {
     local folderName="`echo $1 | sed 's/\.tar\.gz$//'`"
     docker cp $folderName/. $(_mainContainer):$2
     rm -rf $folderName
+}
+
+# Cordova for android build and dev operations
+function cordova() {
+    mkdir -p .cordova
+    mkdir -p .cordova_config
+    mkdir -p .cordova_npm
+    mkdir -p .cordova_tmp_git
+    docker run \
+        --rm -it \
+        -e GIT_NAME="`git config user.name`" \
+        -e GIT_EMAIL="`git config user.email`" \
+        -v $PWD:/app \
+        -v $PWD/.cordova:/.cordova \
+        -v $PWD/.cordova_config:/.config \
+        -v $PWD/.cordova_npm:/.npm \
+        -v $PWD/.cordova_tmp_git:/tmp/git \
+        -w /app \
+        rainsystems/cordova:latest $@
 }
 
 # Pull all the wordpress file and db changes from staging  (Warning Replaces all local changes)
@@ -825,21 +855,6 @@ function _exec() {
 # Reset permissions to my user
 function reset-owner() {
     _exec chown -R `id -u`.`id -g` $1
-}
-
-# Convert docker-compose volumes into docker run volumes
-function _mainVolumes() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | sed 's/^-/-v /' | tr "\n" ' '
-}
-function _mainVolumesFrom() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes_from:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--volumes-from \"\$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/$/_1\"/' | tr "\n" ' '
-}
-function _mainLinks() {
-  _parse_yaml docker-compose.yml "dc_"
-  echo $dc_main_links
-}
-function _mainEnv() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'environment:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -2 | tr -d ' ' | tr ':' '=' | sed 's/^/-e /' | tr "\n" ' '
 }
 
 function help() {
