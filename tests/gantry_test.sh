@@ -36,10 +36,13 @@ function testNpmInit() {
     assert "[ ! -f \"package.json\" ]" "Clean up failed"
 }
 
+# Slow
 function testGulp() {
+    npm init -f >> test.log
+    npm install gulp gulp-concat --save-dev >> test.log
     gulp >> test.log
     assert "[ -f \"build/all.min.js\" ]" "build/all.min.js file expected"
-    rm -rf build
+    rm -rf build package.json node_modules
     assert "[ ! -d \"build\" ]" "Clean up failed"
 }
 
