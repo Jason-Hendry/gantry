@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 
-export GANTRY_VERSION="1.3"
+export GANTRY_VERSION="1.4"
 
 [ -z $COMPOSE_PROJECT_NAME ] && export COMPOSE_PROJECT_NAME="$(basename $(pwd))"
 [ -z $GANTRY_ENV ] && export GANTRY_ENV="prod"
 
-[ -f .gantry ] && . .gantry
-[ -f gantry.sh ] && . gantry.sh
+[ "$(basename `pwd`)" != "gantry" ] && [ -f gantry.sh ] && . gantry.sh
 
 [ -z $DOCKER_HTTP_PORT ] && export DOCKER_HTTP_PORT=80
 [ -z $PHPUNIT_CONF_PATH ] && export PHPUNIT_CONF_PATH="app"
@@ -14,6 +13,9 @@ export GANTRY_VERSION="1.3"
 [ -z $SSH_DIR ] && export SSH_DIR="$HOME/.ssh"
 [ -z $BOWER_VOL ] && export BOWER_VOL="`pwd`/bower_components"
 [ -z $BOWER_MAP ] && export BOWER_MAP="$BOWER_VOL:/source/bower_components"
+
+[ -z $GANTRY_PMA_PORT ] && export GANTRY_PMA_PORT=9900;
+[ -z $GANTRY_PMA_PORT_PROD ] && export GANTRY_PMA_PORT_PROD=9901;
 
 [ -d "${HOME}/.gantry" ] || mkdir -p "${HOME}/.gantry"
 export GANTRY_DATA_FILE="$HOME/.gantry/${COMPOSE_PROJECT_NAME}_${GANTRY_ENV}"
@@ -30,7 +32,7 @@ function start() {
     echo "Started (Env: ${APP_ENV})";
 
     ## If db is not started run build and run main start
-    if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_db_1\b")" ]; then
+    if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_main_[0-9]+\b")" ]; then
         docker-compose up -d
         _save
         web
@@ -62,17 +64,7 @@ function start() {
         docker rm -v ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
     fi
 
-    DOCKER_RUN_CMD="$(echo docker run -d -p ${DOCKER_HTTP_PORT}:80 \
-      --name ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT} \
-      $(_mainVolumes) \
-      --restart always \
-      $(_mainVolumesFrom) \
-      $(_mainLinks) \
-      $(_mainEnv) \
-      ${COMPOSE_PROJECT_NAME}_main)"
-
-    # Start
-    eval "$DOCKER_RUN_CMD" || exit 1
+    docker-compose scale main=2
 
     # Wait for port to open
     echo "Waiting for http://$(_dockerHost):$DOCKER_HTTP_PORT";
@@ -134,9 +126,78 @@ function psql() {
 function mysql() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "MYSQL_PWD=\${MYSQL_ROOT_PASSWORD} mysql -uroot \${MYSQL_DATABASE}"
 }
+
+
+# Restore DB from file (filename.sql.gz)
+function restore-prod() {
+
+    read -r -p "This will drop and recreate $DB_PROD - continue? [y/N] " response
+    if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+        then
+
+        # TODO: postgres restore
+        gunzip -c $1 > data/backup/backup.sql
+        docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "echo \"drop database IF EXISTS \$MYSQL_DATABASE;create database \$MYSQL_DATABASE\" | mysql -h $DB_PROD -p -u$DB_PROD_USER"
+        docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "cat /backup/backup.sql | mysql -h $DB_PROD -u$DB_PROD_USER -p \$MYSQL_DATABASE"
+        echo "DB Restore using $1"
+    fi
+}
+# Create DB backup - gzipped sql (optional filename - no extension)
+function backup-prod() {
+    # TODO: postgres backup
+    [ -z $1 ] && local BU_FILE="backup-$(date +%Y%m%d%H%M)" || local BU_FILE="$1"
+    docker exec ${COMPOSE_PROJECT_NAME}_db_1 bash -c "mysqldump -h $DB_PROD -u$DB_PROD_USER \$MYSQL_DATABASE > /backup/backup.sql"
+    cat data/backup/backup.sql > ${BU_FILE}.sql
+    gzip ${BU_FILE}.sql
+    echo "DB Backup $BU_FILE"
+}
+
+# Open mysql client to production (RDS)
+function mysql-prod() {
+    docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash -c "mysql -h $DB_PROD -p -u$DB_PROD_USER"
+}
+
+
 # Open terminal console on db docker container
 function console_db() {
     docker exec -it ${COMPOSE_PROJECT_NAME}_db_1 bash
+}
+
+
+function phpmyadmin() {
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(_dockerHost):$GANTRY_PMA_PORT/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):$GANTRY_PMA_PORT// 2> /dev/null > /dev/null
+
+
+    docker run --rm \
+      -l ${COMPOSE_PROJECT_NAME}_db_1:db \
+      -p "$GANTRY_PMA_PORT:80" \
+      -e PMA_HOST:"db" \
+      -e PMA_PORT:"3306" \
+      -e PMA_USER:"root" \
+      -e PMA_PASSWORD:"$DB_PROD_PW" \
+      phpmyadmin/phpmyadmin
+}
+function phpmyadmin-prod() {
+
+    echo "Connecting to: ${DB_PROD_USER}@${DB_PROD}:3306";
+
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(_dockerHost):$GANTRY_PMA_PORT_PROD/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):$GANTRY_PMA_PORT_PROD// 2> /dev/null > /dev/null
+
+    [ -z "DB_PROD_PW" ] && read -s -p "Production MySQL Password: " DB_PROD_PW
+
+    set -e
+
+    docker run --rm \
+      -p "$GANTRY_PMA_PORT_PROD:80" \
+      -e "PMA_HOST=${DB_PROD}" \
+      -e "PMA_PORT=3306" \
+      -e "PMA_USER=${DB_PROD_USER}" \
+      -e "PMA_PASSWORD=${DB_PROD_PW}" \
+      phpmyadmin/phpmyadmin
 }
 
 # Restore DB from file (filename.sql.gz)
@@ -197,6 +258,35 @@ function playbook() {
                         -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
                         rainsystems/ansible -c ssh "$@"
 }
+function ansible-console() {
+    [ -z "$EDITOR" ] && export EDITOR='vim'
+    [ -f "aws.sh" ] && . aws.sh
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+                        -v $HOME/.ssh:/ssh \
+                        -v `pwd`:/app \
+                        -v $SSH_DIR:/ssh \
+                        -e DEBUG="TRUE" \
+                        -e EC2_INV="TRUE" \
+                        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+                        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                        -e EDITOR=$EDITOR \
+                        rainsystems/ansible "$@"
+}
+function ansible-vault() {
+    [ -z "$EDITOR" ] && export EDITOR='vim'
+    [ -f "aws.sh" ] && . aws.sh
+    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+                        -v $HOME/.ssh:/ssh \
+                        -v `pwd`:/app \
+                        -v $SSH_DIR:/ssh \
+                        -e VAULT="TRUE" \
+                        -e EC2_INV="TRUE" \
+                        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+                        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+                        rainsystems/ansible "$@"
+}
 # run composer command
 function composer() {
     docker run --rm \
@@ -204,7 +294,7 @@ function composer() {
         -e GANTRY_GID="`id -g`" \
         -v `pwd`:/app \
         -v $SSH_DIR:/ssh \
-        composer/composer $@
+        rainsystems/composer $@
 }
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
 function sass() {
@@ -250,7 +340,7 @@ function npm() {
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
-    [ -d "bower_components" ] || mkdir bower_components
+    [ -d "bower_components" ] || mkdir -p bower_components
     docker run --rm \
         -e GANTRY_UID="`id -u`" \
         -e GANTRY_GID="`id -g`" \
@@ -364,8 +454,8 @@ function logs() {
 
 # create fosUserBundle user (username email password role)
 function create-user() {
-    _exec ./app/console fos:user:create $1 $2 $3
-    _exec ./app/console fos:user:promote $1 $4
+    _exec console fos:user:create $1 $2 $3
+    _exec console fos:user:promote $1 $4
 }
 
 # Grab and tare gzip a folder from the main container
@@ -406,7 +496,7 @@ EOF
         ssh $STAGING_HOST 'bash /tmp/wp-pull.sh' && \
         scp $STAGING_HOST:/app/${COMPOSE_PROJECT_NAME}/current/gantry-staging-pull* ./ && \
         gantry restore gantry-staging-pull.sql.gz && \
-        gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads && \
+        gantry put gantry-staging-pull-uploads.tar.gz /var/www/html/wp-content/uploads/ && \
         ssh $STAGING_HOST 'bash /tmp/wp-pull.sh cleanup'
     rm /tmp/wp-pull.sh
     wp-host
@@ -730,8 +820,13 @@ EOF
 }
 
 function _exec() {
-    docker exec -it $(_mainContainer) $@
+    docker exec $_GANTRY_EXEC_OPTION -it $(_mainContainer) $@
 }
+# Reset permissions to my user
+function reset-owner() {
+    _exec chown -R `id -u`.`id -g` $1
+}
+
 # Convert docker-compose volumes into docker run volumes
 function _mainVolumes() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' | sed 's/^-/-v /' | tr "\n" ' '
@@ -740,29 +835,43 @@ function _mainVolumesFrom() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'volumes_from:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--volumes-from \"\$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/$/_1\"/' | tr "\n" ' '
 }
 function _mainLinks() {
-  cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'links:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -1 | tr -d ' ' |  sed 's/^-/--link \"\$\{COMPOSE_PROJECT_NAME\}_/' | sed 's/:\|$/_1\0/' | sed 's/$/"/' | tr "\n" ' '
+  _parse_yaml docker-compose.yml "dc_"
+  echo $dc_main_links
 }
 function _mainEnv() {
   cat docker-compose.yml | grep -A 50 -m 1 -E "^main:$" | grep -A50 -m1 'environment:' | tail -n +2 | grep -B50 -m1 -E '^  [^ ]' | head -n -2 | tr -d ' ' | tr ':' '=' | sed 's/^/-e /' | tr "\n" ' '
 }
 
-if [ -z $1 ]; then
+function help() {
     echo "Usage $0 [command]"
     echo ""
     echo -n "Commands"
     cat `which $0` | grep -B1 -E "function [a-z]" | tr "\n" ">" | tr "#" "\n" | perl -F'>' -ane '$fun = substr(substr($F[1], 9), 0, -4);printf "  %-15s %s\n", $fun, $F[0]'
     echo ""
-    if [ -f .gantry ]; then
-      echo -n "Project Commands (.gantry)"
-      cat .gantry | grep -B1 -E "function [a-z]" | tr "\n" ">" | tr "#" "\n" | perl -F'>' -ane '$fun = substr(substr($F[1], 9), 0, -4);printf "  %-15s %s\n", $fun, $F[0]'
-    fi
     if [ -f gantry.sh ]; then
       echo -n "Project Commands (gantry.sh)"
       cat gantry.sh | grep -B1 -E "function [a-z]" | tr "\n" ">" | tr "#" "\n" | perl -F'>' -ane '$fun = substr(substr($F[1], 9), 0, -4);printf "  %-15s %s\n", $fun, $F[0]'
     fi
     echo ""
     exit;
-fi
+}
 
+while $#
+do
+    case $1 in
+    "-e")
+        shift
+        export APP_ENV=$1
+        shift
+    ;;
+    *)
+        cmd = $1
+        shift
+        break
+    ;;
+    esac
+done
+
+[ -z $cmd ] && cmd="help"
 # Run Command
-$1 ${@:2}
+$cmd $@
