@@ -285,24 +285,29 @@ function ansible-console() {
 function ansible-vault() {
     [ -z "$EDITOR" ] && export EDITOR='vim'
     [ -f "aws.sh" ] && . aws.sh
-    docker run -it --rm -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
-                        -v $HOME/.ssh:/ssh \
-                        -v `pwd`:/app \
-                        -v $SSH_DIR:/ssh \
-                        -e VAULT="TRUE" \
-                        -e EC2_INV="TRUE" \
-                        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
-                        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-                        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-                        rainsystems/ansible "$@"
+    docker run -it --rm \
+        -u `id -u`:`id -g` \
+        -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
+        -v $HOME/.ssh:/ssh \
+        -v `pwd`:/app \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
+        -e VAULT="TRUE" \
+        -e EC2_INV="TRUE" \
+        -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
+        -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+        -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+        rainsystems/ansible "$@"
 }
 # run composer command
 function composer() {
+    [ -d ".composer_cache" ] || mkdir -p .composer_cache
     docker run --rm \
-        -e GANTRY_UID="`id -u`" \
-        -e GANTRY_GID="`id -g`" \
+        -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
         -v `pwd`:/app \
-        -v $SSH_DIR:/ssh \
+        -v `pwd`/.composer_cache:/composer/cache \
         rainsystems/composer $@
 }
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
@@ -389,6 +394,9 @@ function pull () {
         'cap')
             docker pull rainsystems/cap:3.4.0
         ;;
+        'ansible')
+            docker pull rainsystems/ansible
+        ;;
     esac
     else
         echo "Pulling all gantry images"
@@ -397,6 +405,7 @@ function pull () {
         docker pull rainsystems/bower:1.7.2
         docker pull rainsystems/sass:3.4.21
         docker pull rainsystems/cap:3.4.0
+        docker pull rainsystems/ansible
     fi
 }
 
