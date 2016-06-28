@@ -229,13 +229,14 @@ function backup() {
 function cap() {
     [ ! -d "config" ] && mkdir config && chmod 1755 config
     docker run -it --rm \
+        -u `id -u`:`id -g` \
         -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK \
         -e GANTRY_UID="`id -u`" \
         -e GANTRY_GID="`id -g`" \
+        -e HOME=$HOME \
         -v $(dirname $SSH_AUTH_SOCK):$(dirname $SSH_AUTH_SOCK) \
-        -v $HOME/.ssh:/ssh \
+        -v $HOME:$HOME \
         -v `pwd`:/app \
-        -v $SSH_DIR:/ssh \
         rainsystems/cap:3.4.0 $@
 }
 # run ansible command
@@ -863,7 +864,7 @@ function help() {
     echo -n "Commands"
     cat `which $0` | grep -B1 -E "function [a-z]" | tr "\n" ">" | tr "#" "\n" | perl -F'>' -ane '$fun = substr(substr($F[1], 9), 0, -4);printf "  %-15s %s\n", $fun, $F[0]'
     echo ""
-    if [ -f gantry.sh ]; then
+    if [ "$(basename `pwd`)" != "gantry" ] && [ -f gantry.sh ]; then
       echo -n "Project Commands (gantry.sh)"
       cat gantry.sh | grep -B1 -E "function [a-z]" | tr "\n" ">" | tr "#" "\n" | perl -F'>' -ane '$fun = substr(substr($F[1], 9), 0, -4);printf "  %-15s %s\n", $fun, $F[0]'
     fi
@@ -871,7 +872,7 @@ function help() {
     exit;
 }
 
-while $#
+while [[ $# -gt 0 ]]
 do
     case $1 in
     "-e")
@@ -880,7 +881,8 @@ do
         shift
     ;;
     *)
-        cmd = $1
+        echo "Command $1"
+        cmd=$1
         shift
         break
     ;;
