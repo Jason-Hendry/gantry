@@ -313,8 +313,9 @@ function composer() {
 # run sass command inside docker container (rainsystems/sass:3.4.21) (extra args passed to sass command)
 function sass() {
     docker run -it --rm \
-        -e GANTRY_UID="`id -u`" \
-        -e GANTRY_GID="`id -g`" \
+        -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
         -v `pwd`:/source \
         rainsystems/sass:3.4.21 $@
 }
@@ -340,6 +341,9 @@ function wraith() {
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function node() {
     docker run -it --rm \
+        -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
         -w="/app" \
         --entrypoint node \
         -v `pwd`:/app node:5-slim $@
@@ -348,17 +352,16 @@ function node() {
 function npm() {
     docker run -it --rm \
         -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
         -w="/app" \
         --entrypoint npm \
         -v `pwd`:/app \
-        -v $HOME:$HOME \
-        -e HOME="$HOME" \
         node:5-slim $@
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
-    [ -d "bower_components" ] || mkdir -p bower_components
-    docker run --rm \
+    docker run --rm $([ -n $PS1 ] && echo '-it') \
         -u `id -u`:`id -g` \
         -v `pwd`:/app \
         -v $HOME:$HOME \
@@ -890,7 +893,6 @@ do
         shift
     ;;
     *)
-        echo "Command $1"
         cmd=$1
         shift
         break
