@@ -321,6 +321,15 @@ function sass() {
         -v `pwd`:/source \
         rainsystems/sass:3.4.21 $@
 }
+# run aws command inside docker container (rainsystems/aws) (extra args passed to aws command)
+function aws() {
+    docker run -it --rm \
+        -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
+        -v `pwd`:/app \
+        rainsystems/aws $@
+}
 # run behat command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function behat() {
     docker run -it --rm \
