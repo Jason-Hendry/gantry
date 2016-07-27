@@ -56,8 +56,6 @@ function start() {
       export STOP_DOCKER_HTTP_PORT="$DOCKER_HTTP_PORT2"
     fi
 
-
-
     # Build
     build || exit 1
 
@@ -105,13 +103,17 @@ function rebuild() {
 }
 # Open in web browser (or default application for http protocol)
 function web() {
-    source ${GANTRY_DATA_FILE}
-    echo "Opening: http://$(_dockerHost):${DOCKER_HTTP_PORT}"
-
     # Try Linux xdg-open otherwise OSX open
-    xdg-open http://$(_dockerHost):$DOCKER_HTTP_PORT/ 2> /dev/null > /dev/null || \
-    open http://$(_dockerHost):$DOCKER_HTTP_PORT// 2> /dev/null > /dev/null
+    echo "Opening: `url`"
+    xdg-open `url` 2> /dev/null > /dev/null || \
+    open `url` 2> /dev/null > /dev/null
 }
+# Display current active local url
+function url() {
+    source ${GANTRY_DATA_FILE}
+    echo http://$(_dockerHost):$DOCKER_HTTP_PORT/
+}
+
 # Open terminal console on main docker container
 function console() {
     source ${GANTRY_DATA_FILE}
@@ -323,6 +325,15 @@ function sass() {
         -e HOME=$HOME \
         -v `pwd`:/source \
         rainsystems/sass:3.4.21 $@
+}
+# run aws command inside docker container (rainsystems/aws) (extra args passed to aws command)
+function aws() {
+    docker run -it --rm \
+        -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
+        -v `pwd`:/app \
+        rainsystems/aws $@
 }
 # run behat command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function behat() {
