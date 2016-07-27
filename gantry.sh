@@ -27,6 +27,11 @@ function _save() {
     echo "export DOCKER_HTTP_PORT=\"${DOCKER_HTTP_PORT}\"" >> ${GANTRY_DATA_FILE}
     echo "export COMPOSE_PROJECT_NAME=\"${COMPOSE_PROJECT_NAME}\"" >> ${GANTRY_DATA_FILE}
 }
+
+function _dockerComposeFiles() {
+    echo -n "-f docker-compose.yml $([ -f "docker-compose-${APP_ENV}.yml" ] && echo -n "-f docker-compose-${APP_ENV}.yml")"
+}
+
 # Start Docker Containers
 function start() {
 
@@ -34,7 +39,7 @@ function start() {
 
     ## If db is not started run build and run main start
     if [ -z "$(docker ps | grep -E "\b${COMPOSE_PROJECT_NAME}_main_[0-9]+\b")" ]; then
-        docker-compose up -d
+        docker-compose $(_dockerComposeFiles) up -d
         _save
         exit 0
     fi
@@ -64,7 +69,7 @@ function start() {
         docker rm -v ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
     fi
 
-    docker-compose scale main=2
+    docker-compose $(_dockerComposeFiles) scale main=2
 
     # Wait for port to open
     echo "Waiting for http://$(_dockerHost):$DOCKER_HTTP_PORT";
@@ -81,7 +86,7 @@ function start() {
 }
 # Stop Docker Containers
 function stop() {
-    bash -c "DOCKER_HTTP_PORT=80 docker-compose stop"
+    bash -c "DOCKER_HTTP_PORT=80 docker-compose $(_dockerComposeFiles) stop"
 }
 # Restart Docker Containers
 function restart() {
@@ -90,7 +95,7 @@ function restart() {
 }
 # Build Docker Containers
 function build() {
-    docker-compose build
+    docker-compose $(_dockerComposeFiles) build
 }
 # Rebuild Docker Containers
 function rebuild() {
@@ -115,7 +120,7 @@ function console() {
 }
 # Remove all containers and delete volumes (including DB data and uploaded files)
 function remove() {
-    docker-compose rm -v
+    docker-compose $(_dockerComposeFiles) rm -v
 }
 # Open psql client on db docker container
 function psql() {
@@ -710,7 +715,7 @@ EOF
 function init-symfony() {
     local PROJECT_NAME="`basename .`"
 
-    docker ps --format "{{.Ports}}-{{.Names}}" | sed 's/0.0.0.0://' | grep '\->' | cut -d\- -f1,3 | sed 's/-/: /'
+    docker ps --format "{{.Ports}}-{{.Names}}" | sed 's/0.0.0.0://' | grep '\->' | cut -d\- -f1,3 | sed 's/-/: /' | sort
     read -p "Enter an unused even port between 1000 and 9999: " portNum
 
 cat << 'EOF' > docker-compose.yml
