@@ -447,6 +447,7 @@ function test() {
 
 # run symfony console (./app/console ...)
 function symfony() {
+    $_GANTRY_EXEC_OPTIONS="-u `id -u`:`id -g`"
     _exec ./app/console $@
 }
 # run symfony console (./app/console ...)
@@ -479,10 +480,12 @@ function sf-schema() {
 }
 # run symfony schema update
 function sf-entity() {
+    $_GANTRY_EXEC_OPTIONS="-u `id -u`:`id -g`"
     _exec console doctrine:generate:entity
 }
 # run symfony schema update
 function sf-crud() {
+    $_GANTRY_EXEC_OPTIONS="-u `id -u`:`id -g`"
     _exec console doctrine:generate:crud
 }
 
