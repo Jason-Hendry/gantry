@@ -82,9 +82,16 @@ function start() {
 
     _save
 }
+
+function up() {
+    docker-compose $(_dockerComposeFiles) up $@
+}
+function scale() {
+    docker-compose $(_dockerComposeFiles) scale $@
+}
 # Stop Docker Containers
 function stop() {
-    bash -c "DOCKER_HTTP_PORT=80 docker-compose $(_dockerComposeFiles) stop"
+    docker-compose $(_dockerComposeFiles) stop $@
 }
 # Restart Docker Containers
 function restart() {
@@ -364,6 +371,15 @@ function node() {
         --entrypoint node \
         -v `pwd`:/app node:5-slim $@
 }
+function typings() {
+    docker run -it --rm \
+        -u `id -u`:`id -g` \
+        -v $HOME:$HOME \
+        -e HOME=$HOME \
+        -w="/app" \
+        --entrypoint typings \
+        -v `pwd`:/app node:5-slim $@
+}
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function npm() {
     docker run -it --rm \
@@ -374,6 +390,10 @@ function npm() {
         --entrypoint npm \
         -v `pwd`:/app \
         node:5-slim $@
+#        -p 5000:5000 \
+#        -p 8000:8000 \
+#        -p 3000:3000 \
+#        -p 3001:3001 \
 }
 # run bower command inside docker container (rainsystems/bower:1.7.2) (extra args passed to bower command)
 function bower() {
@@ -478,6 +498,12 @@ function sf-schema() {
         fi
     fi
 }
+
+# symfony dev - fetch vendor folder from container for auto complete in IDE
+function symfony-dev() {
+    docker cp $(_mainContainer):/var/www/vendor $PWD/
+}
+
 # run symfony schema update
 function sf-entity() {
     $_GANTRY_EXEC_OPTIONS="-u `id -u`:`id -g`"
@@ -887,6 +913,23 @@ function _exec() {
 # Reset permissions to my user
 function reset-owner() {
     _exec chown -R `id -u`.`id -g` $1
+}
+
+# Install or Replace local ssh.conf into ~/.ssh/config
+function sshconf() {
+    if [ -f ssh.conf ]; then
+        local folder=`pwd | tr / _`
+        if grep -q "## BEGIN ${folder}" ~/.ssh/config; then
+            echo "Updating: ${folder}";
+            sed -i -ne "/## BEGIN ${folder} ##/ {p; r ssh.conf" -e ":a; n; /## END ${folder} ##/ {p; b}; ba}; p" ~/.ssh/config
+        else
+            echo "Adding: ${folder}";
+            echo "" >> ~/.ssh/config
+            echo "## BEGIN ${folder} ##" >> ~/.ssh/config
+            cat ssh.conf >> ~/.ssh/config
+            echo "## END ${folder} ##" >> ~/.ssh/config
+        fi
+    fi
 }
 
 function help() {
