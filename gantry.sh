@@ -159,6 +159,20 @@ function pma() {
         phpmyadmin/phpmyadmin
 
 }
+
+function pgadmin() {
+    echo "Open pgAdmin for ${COMPOSE_PROJECT_NAME}_db_1";
+
+    # Try Linux xdg-open otherwise OSX open
+    xdg-open http://$(_dockerHost):5050/ 2> /dev/null > /dev/null || \
+    open http://$(_dockerHost):5050// 2> /dev/null > /dev/null
+
+    docker run --name ${COMPOSE_PROJECT_NAME}-pgadmin \
+               --link "${COMPOSE_PROJECT_NAME}_db_1:postgres" \
+               -p 5050:5050 \
+               -d fenglc/pgadmin4
+}
+
 # Open PHPMyAdmin on prod
 function pma-prod() {
     # Try Linux xdg-open otherwise OSX open
