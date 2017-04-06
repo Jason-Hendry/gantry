@@ -651,8 +651,16 @@ function _mainContainerId {
     cat docker-compose.yml | grep -vE '^\s*$' | head -n1 | tr -d ':'
 }
 function _mainContainer {
-    source ${GANTRY_DATA_FILE}
-    echo ${COMPOSE_PROJECT_NAME}_main_${DOCKER_HTTP_PORT}
+    docker ps -q \
+    -f "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" \
+    -f "label=com.docker.compose.service=main" \
+    | head -n1
+}
+function _oneContainer {
+    docker ps -q \
+    -f "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" \
+    -f "label=com.docker.compose.service=$1" \
+    | head -n1
 }
 function _dockerHost {
     if [ -z $DOCKER_HOST ]
