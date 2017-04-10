@@ -118,7 +118,17 @@ function web() {
 # Display current active local url
 function url() {
     source ${GANTRY_DATA_FILE}
+
+    if [ "$(_virtualHost)" != "" ]; then
+        echo http://$(_virtualHost)
+        return
+    fi
+
     echo http://$(_dockerHost):$DOCKER_HTTP_PORT/
+}
+
+function _virtualHost() {
+    docker inspect --format '{{range .Config.Env}}{{ . }}{{"\n"}}{{ end }}' `_mainContainer` | grep 'VIRTUAL_HOST' | cut -d\= -f2
 }
 
 # Open terminal console on main docker container
